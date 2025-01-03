@@ -51,12 +51,12 @@ Refresh()
     fade = (255-timer) * 3 >> 2
     WindowMegaImage(-16.0,-2.0,  0.0,-2.0,  0.0,2.0,  -16.0,2.0,  0.01,0.0,  1.0,1.0,  WHITE, ALPHA_TRANS+(255-timer), "FILE:TITLEL.RGB")
     WindowMegaImage(0.0,-2.0,  16.0,-2.0,  16.0,2.0,  0.0,2.0,  0.0,0.0,  0.99,1.0,  WHITE, ALPHA_TRANS+(255-timer), "FILE:TITLER.RGB")
-    WindowMegaImage(3.0,0.0,  19.0,0.0,  19.0,4.0,  3.0,4.0,  0.0,0.0,  1.0,1.0,  DARK_RED, ALPHA_TRANS+fade, "FILE:=TITLEU.RGB")
+    WindowMegaImage(-8.0,1.0,  19.0,0.0,  19.0,4.0,  -8.0,4.0,  0.0,0.0,  1.0,1.0,  DARK_RED, ALPHA_TRANS+fade, "FILE:=TITLEU.RGB")
     timer = timer + SystemGet(SYS_MAINFRAMESKIP, 0, 0) * 7
   if(mode == 8)
     WindowMegaImage(-16.0,-2.0,  0.0,-2.0,  0.0,2.0,  -16.0,2.0,  0.01,0.0,  1.0,1.0,  WHITE, ALPHA_NONE, "FILE:TITLEL.RGB")
     WindowMegaImage(0.0,-2.0,  16.0,-2.0,  16.0,2.0,  0.0,2.0,  0.0,0.0,  0.99,1.0,  WHITE, ALPHA_NONE, "FILE:TITLER.RGB")
-    WindowMegaImage(3.0,0.0,  19.0,0.0,  19.0,4.0,  3.0,4.0,  0.0,0.0,  1.0,1.0,  DARK_RED, ALPHA_TRANS+192, "FILE:=TITLEU.RGB")
+    WindowMegaImage(-8.0,1.0,  19.0,0.0,  19.0,4.0,  -8.0,4.0,  0.0,0.0,  1.0,1.0,  DARK_RED, ALPHA_TRANS+192, "FILE:=TITLEU.RGB")
     timer = timer + SystemGet(SYS_MAINFRAMESKIP, 0, 0) * 3
   if(mode == 7)
     WindowMegaImage(-16.0,-2.0,  0.0,-2.0,  0.0,2.0,  -16.0,2.0,  0.01,0.0,  1.0,1.0,  WHITE, ALPHA_NONE, "FILE:TITLEL.RGB")
@@ -67,22 +67,22 @@ Refresh()
     y = 0.0
     tx = 0.0
     amp = (255-timer) / 1024.0
-    yaddnext = sin((timer+256)<<1) * amp
+    yaddnext = sin((timer+512)<<1) * amp
     i = 0
     while(i < 32)
       yadd = yaddnext
-      yaddnext = sin(((timer+256)<<1)+(i<<6)) * amp
+      yaddnext = sin(((timer+512)<<1)+(i<<6)) * amp
       WindowMegaImage(x,y+yadd,  x+xadd,y+yaddnext,  x+xadd,y+4.0+yaddnext,  x,y+4.0+yadd  ,tx,0.0,  tx+txadd,1.0,  DARK_RED, ALPHA_TRANS+128, "FILE:=TITLEU.RGB")
       tx = tx + txadd
       x = x + xadd
       i++
     x = 3.0
     tx = 0.0
-    yaddnext = sin(((timer+256)<<1)+90) * amp
+    yaddnext = sin(((timer+512)<<1)+90) * amp
     i = 0
     while(i < 32)
       yadd = yaddnext
-      yaddnext = sin(((timer+256)<<1)+(i<<6)+90) * amp
+      yaddnext = sin(((timer+512)<<1)+(i<<6)+90) * amp
       WindowMegaImage(x,y+yadd,  x+xadd,y+yaddnext,  x+xadd,y+4.0+yaddnext,  x,y+4.0+yadd  ,tx,0.0,  tx+txadd,1.0,  DARK_RED, ALPHA_TRANS+128, "FILE:=TITLEU.RGB")
       tx = tx + txadd
       x = x + xadd
