@@ -20,13 +20,7 @@
 // <ZZ> This file contains functions to handle networking
 //      network_blah			- Blah
 
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
 #define ALLOW_LOCAL_PACKETS
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
 
 
 #define UDP_PORT 17859          // Orangeville, PA
@@ -50,8 +44,7 @@ IPaddress       local_address;
 IPaddress       main_server_address;
 TCPsocket       main_server_socket;
 unsigned char   main_server_on = FALSE;
-//#define MAIN_SERVER_NAME "www.aaronbishopgames.com"
-#define MAIN_SERVER_NAME "FooFoo"
+#define MAIN_SERVER_NAME NULL
 
 
 UDPsocket       remote_socket;
@@ -60,6 +53,25 @@ unsigned short	remote_room_number[MAX_REMOTE];
 unsigned char	remote_is_neighbor[MAX_REMOTE];
 unsigned char	remote_on[MAX_REMOTE];
 unsigned short  num_remote = 0;
+
+
+// LAN broadcast discovery
+#define LAN_BROADCAST_PORT 17860
+#define LAN_BROADCAST_INTERVAL 120      // Frames between broadcasts (~2 seconds at 60fps)
+UDPsocket       lan_broadcast_socket;
+unsigned char   lan_hosting = FALSE;
+unsigned short  lan_broadcast_timer = 0;
+#define MAX_LAN_GAMES 16
+IPaddress       lan_game_address[MAX_LAN_GAMES];
+unsigned short  lan_game_players[MAX_LAN_GAMES];
+unsigned char   lan_game_on[MAX_LAN_GAMES];
+unsigned short  lan_game_timeout[MAX_LAN_GAMES];
+unsigned short  num_lan_games = 0;
+
+// Join handshake state
+unsigned char   join_state = 0;         // 0=idle, 1=sent request, 2=got reply, 3=finalizing, 4=connected
+unsigned short  join_timer = 0;
+IPaddress       join_target_address;
 
 
 
@@ -71,6 +83,8 @@ unsigned short  num_remote = 0;
 #define PACKET_TYPE_ROOM_UPDATE             2
 #define PACKET_TYPE_I_WANNA_PLAY            3
 #define PACKET_TYPE_OKAY_YOU_CAN_PLAY       4
+#define PACKET_TYPE_LAN_ANNOUNCE            5
+#define PACKET_TYPE_LAN_QUERY               6
 unsigned char packet_buffer[MAX_PACKET_SIZE];
 unsigned short packet_length;
 unsigned short packet_counter;
@@ -345,6 +359,49 @@ unsigned char network_add_remote(unsigned char* remote_name)
 }
 
 //-----------------------------------------------------------------------------------------------
+unsigned char network_add_remote_ip(unsigned int host_ip)
+{
+    // <ZZ> Adds a remote by IP address directly (no DNS lookup needed)
+    unsigned short i;
+
+    if(num_remote < MAX_REMOTE)
+    {
+        // Check for duplicates
+        repeat(i, MAX_REMOTE)
+        {
+            if(remote_on[i])
+            {
+                if(remote_address[i].host == host_ip)
+                {
+                    log_message("INFO:   Remote %d.%d.%d.%d already exists as remote %d",
+                        ((unsigned char*)&host_ip)[0], ((unsigned char*)&host_ip)[1],
+                        ((unsigned char*)&host_ip)[2], ((unsigned char*)&host_ip)[3], i);
+                    return TRUE;
+                }
+            }
+        }
+
+        // Find first available slot
+        repeat(i, MAX_REMOTE)
+        {
+            if(remote_on[i] == FALSE)
+            {
+                log_message("INFO:   Added new remote %d.%d.%d.%d as remote number %d",
+                    ((unsigned char*)&host_ip)[0], ((unsigned char*)&host_ip)[1],
+                    ((unsigned char*)&host_ip)[2], ((unsigned char*)&host_ip)[3], i);
+                remote_address[i].host = host_ip;
+                remote_on[i] = TRUE;
+                remote_room_number[i] = 65535;
+                remote_is_neighbor[i] = FALSE;
+                num_remote++;
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+//-----------------------------------------------------------------------------------------------
 void network_delete_remote(unsigned short remote)
 {
     if(remote < MAX_REMOTE)
@@ -363,6 +420,9 @@ void network_close(void)
 {
     // <ZZ> This function shuts down the network...
     log_message("INFO:   Shutting down the network");
+    if(lan_broadcast_socket) SDLNet_UDP_Close(lan_broadcast_socket);
+    if(remote_socket) SDLNet_UDP_Close(remote_socket);
+    if(main_server_socket) SDLNet_TCP_Close(main_server_socket);
 	SDLNet_Quit();
 }
 
@@ -371,7 +431,7 @@ unsigned char network_setup(void)
 {
     // <ZZ> This function initializes all the networking stuff.  Returns TRUE if networking is
     //      available, FALSE if not.
-
+    unsigned short i;
 
 
     // Turn all of our ports on and stuff
@@ -408,24 +468,32 @@ unsigned char network_setup(void)
         }
         else
         {
-            log_message("INFO:   Trying to find the IP address for %s...", MAIN_SERVER_NAME);
-            if(SDLNet_ResolveHost(&main_server_address, MAIN_SERVER_NAME, TCPIP_PORT) == 0)
+            // Try to connect to master server if configured
+            if(MAIN_SERVER_NAME)
             {
-                log_message("INFO:   Found IP...  It's %d.%d.%d.%d", ((unsigned char*)&main_server_address.host)[0], ((unsigned char*)&main_server_address.host)[1], ((unsigned char*)&main_server_address.host)[2], ((unsigned char*)&main_server_address.host)[3]);
-                main_server_socket=SDLNet_TCP_Open(&main_server_address);
-                if(!main_server_socket)
+                log_message("INFO:   Trying to find the IP address for %s...", MAIN_SERVER_NAME);
+                if(SDLNet_ResolveHost(&main_server_address, MAIN_SERVER_NAME, TCPIP_PORT) == 0)
                 {
-                    log_message("ERROR:  Main server could not be contacted...  You can still use the IP Typer Inner though...");
+                    log_message("INFO:   Found IP...  It's %d.%d.%d.%d", ((unsigned char*)&main_server_address.host)[0], ((unsigned char*)&main_server_address.host)[1], ((unsigned char*)&main_server_address.host)[2], ((unsigned char*)&main_server_address.host)[3]);
+                    main_server_socket=SDLNet_TCP_Open(&main_server_address);
+                    if(!main_server_socket)
+                    {
+                        log_message("INFO:   Master server could not be contacted.  LAN and direct IP still available.");
+                    }
+                    else
+                    {
+                        log_message("INFO:   Socket to main server open'd correctly...");
+                        main_server_on = TRUE;
+                    }
                 }
                 else
                 {
-                    log_message("INFO:   Socket to main server open'd correctly...");
-                    main_server_on = TRUE;
+                    log_message("INFO:   Master server was not found.  LAN and direct IP still available.");
                 }
             }
             else
             {
-                log_message("ERROR   Main server was not found...  You can still use the IP Typer Inner though...");
+                log_message("INFO:   No master server configured.  LAN and direct IP available.");
             }
 
 
@@ -441,14 +509,24 @@ unsigned char network_setup(void)
             }
 
 
-            // !!!BAD!!!
-            // !!!BAD!!!
-            network_add_remote("FooFoo");
-            network_add_remote("Frizzlesnitz");
-            // !!!BAD!!!
-            // !!!BAD!!!
+            // Open LAN broadcast socket
+            lan_broadcast_socket = SDLNet_UDP_Open(LAN_BROADCAST_PORT);
+            if(lan_broadcast_socket)
+            {
+                log_message("INFO:   LAN broadcast socket opened on port %d", LAN_BROADCAST_PORT);
+            }
+            else
+            {
+                log_message("INFO:   Could not open LAN broadcast port.  LAN discovery won't work, but direct IP is fine.");
+            }
 
-            // Remember to turn it off
+            // Initialize LAN game list
+            repeat(i, MAX_LAN_GAMES)
+            {
+                lan_game_on[i] = FALSE;
+                lan_game_timeout[i] = 0;
+            }
+
             network_on = TRUE;
             atexit(network_close);
         }
@@ -475,30 +553,11 @@ void network_send(unsigned char send_code)
     UDPpacket udp_packet;
 
 
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-if(send_code == NETWORK_ALL_REMOTES_IN_ROOM)
-{
-    send_code = NETWORK_ALL_REMOTES_IN_GAME;
-}
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
-// !!!BAD!!!
+    // Room tracking not yet implemented - send to all remotes for now
+    if(send_code == NETWORK_ALL_REMOTES_IN_ROOM)
+    {
+        send_code = NETWORK_ALL_REMOTES_IN_GAME;
+    }
 
 
 
@@ -640,9 +699,7 @@ void network_listen(void)
                     {
                         packet_read_unsigned_short(room_number);        // The room number this sender is in...
                         packet_read_unsigned_short(seed);               // The map seed this sender is using...
-// !!!BAD!!!
-// !!!BAD!!!  Seed should be checked properly...
-// !!!BAD!!!
+                        // TODO: Seed should be checked properly
                         if(room_number == map_current_room && seed == 0 && netlist)
                         {
                             // Start to kill off any of this host's characters...
@@ -810,6 +867,60 @@ void network_listen(void)
                                     }
                                 }
                             }
+                        }
+                    }
+                    if(packet_buffer[0] == PACKET_TYPE_I_WANNA_PLAY)
+                    {
+                        // Someone wants to join our game
+                        unsigned int remote_seed;
+                        packet_read_unsigned_int(remote_seed);
+                        log_message("INFO:   Got I_WANNA_PLAY from %d.%d.%d.%d (seed %d)",
+                            ((unsigned char*)&udp_packet.address.host)[0],
+                            ((unsigned char*)&udp_packet.address.host)[1],
+                            ((unsigned char*)&udp_packet.address.host)[2],
+                            ((unsigned char*)&udp_packet.address.host)[3],
+                            remote_seed);
+
+                        if(lan_hosting)
+                        {
+                            // Accept the player - add them as a remote
+                            UDPpacket reply_packet;
+                            network_add_remote_ip(udp_packet.address.host);
+
+                            // Send OKAY_YOU_CAN_PLAY reply with our game seed
+                            packet_begin(PACKET_TYPE_OKAY_YOU_CAN_PLAY);
+                                packet_add_unsigned_int(game_seed);
+                            packet_end();
+
+                            reply_packet.channel = -1;
+                            reply_packet.data = packet_buffer;
+                            reply_packet.len = packet_length;
+                            reply_packet.maxlen = MAX_PACKET_SIZE;
+                            reply_packet.address.host = udp_packet.address.host;
+                            #ifdef LIL_ENDIAN
+                                reply_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
+                            #else
+                                reply_packet.address.port = UDP_PORT;
+                            #endif
+                            SDLNet_UDP_Send(remote_socket, -1, &reply_packet);
+                            log_message("INFO:   Sent OKAY_YOU_CAN_PLAY reply");
+                        }
+                    }
+                    if(packet_buffer[0] == PACKET_TYPE_OKAY_YOU_CAN_PLAY)
+                    {
+                        // Host accepted our join request
+                        unsigned int host_seed;
+                        packet_read_unsigned_int(host_seed);
+                        log_message("INFO:   Got OKAY_YOU_CAN_PLAY (host seed %d)", host_seed);
+
+                        if(join_state >= 1)
+                        {
+                            // Use the host's game seed
+                            game_seed = host_seed;
+                            network_add_remote_ip(udp_packet.address.host);
+                            join_state = 4;  // Connected!
+                            main_game_active = TRUE;
+                            log_message("INFO:   Successfully joined game!");
                         }
                     }
                 }
@@ -1080,6 +1191,253 @@ void network_send_room_update()
 
         network_send(NETWORK_ALL_REMOTES_IN_ROOM);
     }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_lan_broadcast(void)
+{
+    // <ZZ> Sends a LAN announcement packet via broadcast so other machines on the
+    //      local network can discover this game.
+    UDPpacket udp_packet;
+
+    if(network_on && lan_hosting && lan_broadcast_socket)
+    {
+        packet_begin(PACKET_TYPE_LAN_ANNOUNCE);
+            packet_add_unsigned_short(num_remote + 1);  // Player count (remotes + self)
+            packet_add_unsigned_short(UDP_PORT);         // Game port to connect to
+        packet_end();
+
+        udp_packet.channel = -1;
+        udp_packet.data = packet_buffer;
+        udp_packet.len = packet_length;
+        udp_packet.maxlen = MAX_PACKET_SIZE;
+        udp_packet.address.host = 0xFFFFFFFF;  // Broadcast address
+        #ifdef LIL_ENDIAN
+            udp_packet.address.port = (LAN_BROADCAST_PORT>>8) | ((LAN_BROADCAST_PORT&255)<<8);
+        #else
+            udp_packet.address.port = LAN_BROADCAST_PORT;
+        #endif
+        SDLNet_UDP_Send(lan_broadcast_socket, -1, &udp_packet);
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_lan_query(void)
+{
+    // <ZZ> Sends a LAN query to find games on the local network.
+    UDPpacket udp_packet;
+
+    if(network_on && lan_broadcast_socket)
+    {
+        packet_begin(PACKET_TYPE_LAN_QUERY);
+        packet_end();
+
+        udp_packet.channel = -1;
+        udp_packet.data = packet_buffer;
+        udp_packet.len = packet_length;
+        udp_packet.maxlen = MAX_PACKET_SIZE;
+        udp_packet.address.host = 0xFFFFFFFF;  // Broadcast address
+        #ifdef LIL_ENDIAN
+            udp_packet.address.port = (LAN_BROADCAST_PORT>>8) | ((LAN_BROADCAST_PORT&255)<<8);
+        #else
+            udp_packet.address.port = LAN_BROADCAST_PORT;
+        #endif
+        SDLNet_UDP_Send(lan_broadcast_socket, -1, &udp_packet);
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_lan_listen(void)
+{
+    // <ZZ> Checks for LAN broadcast packets (announcements and queries).
+    UDPpacket udp_packet;
+    unsigned short i, player_count, game_port;
+
+    if(!network_on || !lan_broadcast_socket) return;
+
+    udp_packet.channel = -1;
+    udp_packet.data = packet_buffer;
+    udp_packet.len = MAX_PACKET_SIZE;
+    udp_packet.maxlen = MAX_PACKET_SIZE;
+
+    while(SDLNet_UDP_Recv(lan_broadcast_socket, &udp_packet))
+    {
+        packet_length = udp_packet.len;
+        packet_decrypt();
+        if(packet_valid())
+        {
+            if(packet_buffer[0] == PACKET_TYPE_LAN_ANNOUNCE)
+            {
+                // Someone is announcing their game
+                packet_readpos = PACKET_HEADER_SIZE;
+                packet_read_unsigned_short(player_count);
+                packet_read_unsigned_short(game_port);
+
+                // Skip our own broadcasts
+                if(udp_packet.address.host == local_address.host) continue;
+
+                // Check if we already know about this game
+                for(i = 0; i < MAX_LAN_GAMES; i++)
+                {
+                    if(lan_game_on[i] && lan_game_address[i].host == udp_packet.address.host)
+                    {
+                        // Update existing entry
+                        lan_game_players[i] = player_count;
+                        lan_game_timeout[i] = 600;  // ~10 seconds at 60fps
+                        goto next_lan_packet;
+                    }
+                }
+                // Add new game to list
+                for(i = 0; i < MAX_LAN_GAMES; i++)
+                {
+                    if(!lan_game_on[i])
+                    {
+                        lan_game_address[i].host = udp_packet.address.host;
+                        lan_game_address[i].port = game_port;
+                        lan_game_players[i] = player_count;
+                        lan_game_on[i] = TRUE;
+                        lan_game_timeout[i] = 600;
+                        num_lan_games++;
+                        log_message("INFO:   Found LAN game at %d.%d.%d.%d with %d players",
+                            ((unsigned char*)&udp_packet.address.host)[0],
+                            ((unsigned char*)&udp_packet.address.host)[1],
+                            ((unsigned char*)&udp_packet.address.host)[2],
+                            ((unsigned char*)&udp_packet.address.host)[3],
+                            player_count);
+                        break;
+                    }
+                }
+            }
+            else if(packet_buffer[0] == PACKET_TYPE_LAN_QUERY && lan_hosting)
+            {
+                // Someone is looking for games and we're hosting - respond directly
+                network_lan_broadcast();
+            }
+        }
+        next_lan_packet:;
+    }
+
+    // Tick down timeouts
+    for(i = 0; i < MAX_LAN_GAMES; i++)
+    {
+        if(lan_game_on[i])
+        {
+            if(lan_game_timeout[i] > 0)
+            {
+                lan_game_timeout[i]--;
+            }
+            else
+            {
+                lan_game_on[i] = FALSE;
+                num_lan_games--;
+            }
+        }
+    }
+
+    // Periodic broadcast if hosting
+    if(lan_hosting)
+    {
+        if(lan_broadcast_timer > 0)
+        {
+            lan_broadcast_timer--;
+        }
+        else
+        {
+            network_lan_broadcast();
+            lan_broadcast_timer = LAN_BROADCAST_INTERVAL;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_join_game(unsigned char* ip_string)
+{
+    // <ZZ> Initiates joining a game at the given IP address
+    UDPpacket udp_packet;
+
+    if(!network_on) return;
+
+    log_message("INFO:   Attempting to join game at %s", ip_string);
+
+    if(SDLNet_ResolveHost(&join_target_address, ip_string, UDP_PORT) == 0)
+    {
+        // Send I_WANNA_PLAY packet
+        packet_begin(PACKET_TYPE_I_WANNA_PLAY);
+            packet_add_unsigned_int(game_seed);
+        packet_end();
+
+        udp_packet.channel = -1;
+        udp_packet.data = packet_buffer;
+        udp_packet.len = packet_length;
+        udp_packet.maxlen = MAX_PACKET_SIZE;
+        udp_packet.address.host = join_target_address.host;
+        #ifdef LIL_ENDIAN
+            udp_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
+        #else
+            udp_packet.address.port = UDP_PORT;
+        #endif
+        SDLNet_UDP_Send(remote_socket, -1, &udp_packet);
+        join_state = 1;  // Sent request
+        join_timer = 15*60;  // 15 second timeout
+        log_message("INFO:   Sent I_WANNA_PLAY to %d.%d.%d.%d",
+            ((unsigned char*)&join_target_address.host)[0],
+            ((unsigned char*)&join_target_address.host)[1],
+            ((unsigned char*)&join_target_address.host)[2],
+            ((unsigned char*)&join_target_address.host)[3]);
+    }
+    else
+    {
+        log_message("ERROR:  Could not resolve host %s", ip_string);
+        join_state = 0;
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_join_game_ip(IPaddress* addr)
+{
+    // <ZZ> Initiates joining a game at the given IP address struct (for LAN games)
+    UDPpacket udp_packet;
+
+    if(!network_on) return;
+
+    join_target_address = *addr;
+
+    // Send I_WANNA_PLAY packet
+    packet_begin(PACKET_TYPE_I_WANNA_PLAY);
+        packet_add_unsigned_int(game_seed);
+    packet_end();
+
+    udp_packet.channel = -1;
+    udp_packet.data = packet_buffer;
+    udp_packet.len = packet_length;
+    udp_packet.maxlen = MAX_PACKET_SIZE;
+    udp_packet.address.host = join_target_address.host;
+    #ifdef LIL_ENDIAN
+        udp_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
+    #else
+        udp_packet.address.port = UDP_PORT;
+    #endif
+    SDLNet_UDP_Send(remote_socket, -1, &udp_packet);
+    join_state = 1;
+    join_timer = 15*60;
+    log_message("INFO:   Sent I_WANNA_PLAY to %d.%d.%d.%d",
+        ((unsigned char*)&join_target_address.host)[0],
+        ((unsigned char*)&join_target_address.host)[1],
+        ((unsigned char*)&join_target_address.host)[2],
+        ((unsigned char*)&join_target_address.host)[3]);
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_host_game(void)
+{
+    // <ZZ> Start hosting a game
+    if(!network_on) return;
+
+    lan_hosting = TRUE;
+    lan_broadcast_timer = 0;  // Broadcast immediately
+    main_game_active = TRUE;
+    log_message("INFO:   Now hosting a game");
+    network_lan_broadcast();
 }
 
 //-----------------------------------------------------------------------------------------------
