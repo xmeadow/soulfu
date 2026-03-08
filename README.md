@@ -4,7 +4,7 @@
 
 <div align="center">
 
-![logo](soulfu_bftd.png)
+![logo](soulfu_banner.png)
 
 [![Matrix](https://img.shields.io/matrix/soulfu%3Amatrix.org?label=Matrix)](https://matrix.to/#/#soulfu:matrix.org)
 

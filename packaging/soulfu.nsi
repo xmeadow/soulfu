@@ -17,7 +17,7 @@ InstallDir "$PROGRAMFILES\SoulFu"
 RequestExecutionLevel admin
 
 ; Add an icon to the installer
-Icon "Chest.ico"
+Icon "soulfu.ico"
 
 ; Define the installer pages
 Page license
@@ -44,15 +44,15 @@ Section "Install"
     File "SDL2_net.dll"
     File "libogg-0.dll"
     File "libvorbis-0.dll"
-    File "Chest.ico"
+    File "soulfu.ico"
 
     ; Create a shortcut in the Start Menu
     CreateDirectory "$SMPROGRAMS\SoulFu"
-    CreateShortcut "$SMPROGRAMS\SoulFu\SoulFu.lnk" "$INSTDIR\soulfu.exe" "" "$INSTDIR\Chest.ico"
+    CreateShortcut "$SMPROGRAMS\SoulFu\SoulFu.lnk" "$INSTDIR\soulfu.exe" "" "$INSTDIR\soulfu.ico"
     CreateShortcut "$SMPROGRAMS\SoulFu\Manual.lnk" "$INSTDIR\Manual.htm"
 
     ; Create a desktop shortcut (optional)
-    CreateShortcut "$DESKTOP\SoulFu.lnk" "$INSTDIR\soulfu.exe" "" "$INSTDIR\Chest.ico"
+    CreateShortcut "$DESKTOP\SoulFu.lnk" "$INSTDIR\soulfu.exe" "" "$INSTDIR\soulfu.ico"
 
     ; Write uninstaller information
     WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -81,7 +81,7 @@ Section "Uninstall"
     Delete "$INSTDIR\SDL2_net.dll"
     Delete "$INSTDIR\libogg-0.dll"
     Delete "$INSTDIR\libvorbis-0.dll"
-    Delete "$INSTDIR\Chest.ico"
+    Delete "$INSTDIR\soulfu.ico"
     Delete "$INSTDIR\Uninstall.exe"
 
     ; Remove shortcuts

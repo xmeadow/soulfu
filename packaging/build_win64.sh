@@ -11,7 +11,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 INSTALLER_DIR="soulfu_win64"
-ICON_FILE="Chest.ico"
+ICON_FILE="packaging\icons\hicolor\128x128\apps\soulfu.ico"
 OUTPUT_FILE="soulfu_win64_$VERSION.exe"
 ZIP_FILE="soulfu_win64_$VERSION.zip"
 
