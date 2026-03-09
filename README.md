@@ -1,6 +1,6 @@
 # SoulFu: Back From The Dead
 
-> A 3D action role-playing hack and slash dungeon crawler made by Aaron Bishop, the creator of Egoboo.
+> SoulFu was created by Aaron Bishop, who established the foundation for a distinctive 3D action‑RPG dungeon crawler. This project focuses on preservation and continuation. Through targeted maintenance, bug fixes, restoration work, and thoughtful improvements to the existing systems, we aim to keep SoulFu functional, enjoyable, and true to its original spirit — unbroken.
 
 <div align="center">
 
@@ -12,16 +12,36 @@
 
 ---
 
-## Why is the subtitle so gloomy?
-Well, the game seems to be forgotten among developers. I decided to make some effort to change status quo and wanted to show it by adding the unofficial "Back From The Dead" subtitle. I hope my work will be a seed of further development of the game.
 
-## How to contribute?
-1. Fork the repository.
-2. Implement your idea. If you implement more than one feature, it is a good practice to create a separate branch for each feature.
-3. Create a new pull request.
-4. If I like the changes, I will merge them. If not... well, don't worry. You can develop your fork of SoulFu on your own :)
+## FAQ
 
-Having said that, I need to say that any help is really appreciated. Programmers, level designers, 2D/3D artists, translators, testers, etc. If you do not know where to start, just ask...
+<details>
+<summary><strong>Wasn't it called UNLEASHED?</strong></summary>
+Yes, you're right! 20 years ago the title ended with “UNLEASHED.”
+We chose a title that reflects the current state and direction of the revived codebase. “UNBROKEN” captures that idea: despite the decades that have passed and the game’s unfinished nature, its core gameplay has endured and remains fully playable today. It is a testament to its resilience and to the work invested into keeping it alive.
+</details>
+
+<details>
+<summary><strong>Does SoulFu run on my system / console / PC?</strong></summary>
+Most likely, yes!  
+We are working on providing official-ish release candidates.  
+Until then, check our wiki for detailed instructions on how to build SoulFu yourself.
+</details>
+
+<details>
+<summary><strong>How can I contribute?</strong></summary>
+
+1. Fork the repository.  
+2. Implement your idea. If you add multiple features, it's best to create a separate branch for each one.  
+3. Open a new pull request.  
+4. If the changes fit the project direction, they will be merged. If not, no worries — you can continue developing your own fork.
+
+Any help is appreciated: programmers, level designers, 2D/3D artists, translators, testers, and more.  
+If you're unsure where to start, feel free to join our Matrix channel: **[#soulfu:matrix.org](https://matrix.to/#/#soulfu:matrix.org)**
+</details>
+
+
+---
 
 ## Building the game
 Clone the repository:
@@ -39,119 +59,6 @@ Install the following tools and libraries:
 + libjpeg,
 + vorbis,
 + OpenGL development files.
-
-> [!NOTE]
-> The libraries need to be in the 32-bit version.
-
-### Examples
-<details>
-<summary>Arch Linux</summary>
-
-For Arch Linux there exists a package in AUR: [link](https://aur.archlinux.org/packages/soulfu-git).
-
-</details>
-
-<details>
-<summary>Debian / Ubuntu</summary>
-
-1. On 64bit debian enable multiarch support:
-
-```
-dpkg --add-architecture i386
-```
-
-2. Update Package lists and install the required libraries:
-
-```
-sudo apt update
-apt install gcc-multilib libc6-dev:i386 libsdl2-dev:i386 libsdl2-net-dev:i386 libvorbis-dev:i386 libjpeg-dev:i386
-```
-3. Navigate to the project directory and build soulfu
-
-```
-cd soulfu
-make
-```
-
-**Note:** If pkg-config doesn't find the libraries, you can tell it to look in a different folder like this: 
-
-```
-PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig/ make
-```
-
-</details>
-
-<details>
-<summary>Fedora (Outdated)</summary>
-
-Only relevant for SDL 1.2 version:
-```
-sudo dnf install gcc make glibc-devel.i686 sdl12-compat-devel.i686 SDL_net-devel.i686 libogg-devel.i686 libjpeg-turbo-devel.i686 libvorbis-devel.i686 mesa-libGL-devel.i686
-```
-Navigate to the project directory and build soulfu
-```
-cd soulfu
-make
-```
-
-If pkg-config doesn't find the libraries, you can tell it to look in a different folder like this: 
-```
-PKG_CONFIG_PATH=/usr/lib/pkgconfig/ make
-```
-
-</details>
-
-<details>
-<summary>Windows with MSYS2</summary>
-
-1. Install MSYS2 from the [official homepage](https://www.msys2.org/) or use a package manager like [scoop](https://scoop.sh/) `scoop install msys2`.
-
-2. Open MSYS2 and install git and make.
-
-```
-pacman -S git make
-```
-
-3. It is recomended to clone the repo within msys2 because SRC-files need unixoid EOLs.
-
-```
-git clone --recurse-submodules https://github.com/szymor/soulfu soulfu
-```
-
-4. Update Package lists and install the required libraries:
-
-```
-pacman -Su
-pacman -F mingw-w64-i686-binutils
-pacman -S mingw-w64-i686-gcc mingw-w64-i686-pkgconf mingw-w64-i686-SDL2 mingw-w64-i686-SDL2_net mingw-w64-i686-libjpeg-turbo mingw-w64-i686-libvorbis mingw-w64-i686-libogg
-```
-
-5. Export Windows Path with binarys. In this case the directory is in `C:\Users\user\scoop\apps\msys2\current\mingw32\bin\`
-
-```
-export PATH=/c/Users/user/scoop/apps/msys2/current/mingw32/bin:$PATH
-```
-
-6. Check Makefile.mingw if varible WINDRES is set correctly and build
-
-```
-make -f Makefile.mingw
-```
-
-7. To play the game you might need dlls. You can find them in their official repositry: [SDL2.dll](https://github.com/libsdl-org/SDL "Repo of SDL"), [SDL_net.dll](https://github.com/libsdl-org/SDL_net "Repo of SDL_net") 
-
-</details>
-
-<details>
-<summary>Haiku</summary>
-
-```
-setarch x86
-pkgman install libsdl2_devel sdl2_net_devel libogg_devel libvorbis_devel libsdl2_x86 sdl2_net_x86
-make
-```
-
-</details>
 
 
 ## What has been done till now?
