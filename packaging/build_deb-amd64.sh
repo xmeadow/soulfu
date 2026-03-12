@@ -10,11 +10,12 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-PACKAGE_NAME="soulfu-bftd"
+PACKAGE_NAME="soulfu"
 ARCHITECTURE="amd64"
 MAINTAINER="xmeadow <eke@rosauntier.com>"
 DESCRIPTION="A 3D action role-playing hack and slash dungeon crawler made by Aaron Bishop."
 DEPENDENCIES="libsdl2-2.0-0, libsdl2-net-2.0-0, libvorbis0a, libgl1, libogg0, libjpeg62-turbo | libjpeg62"
+NICEWARE_DIR="packaging/niceware"
 
 # Compile with release flag
 rm -f soulfu
@@ -36,29 +37,23 @@ mkdir -p ${PACKAGE_NAME}/usr/share/applications
 mkdir -p ${PACKAGE_NAME}/usr/local/games/
 
 # Check if files exist and copy them
-if [ -f "soulfu" ] && [ -f "Manual.htm" ] && [ -f "datafile.sdf" ] && [ -f "soulfu.png" ]; then
+if [ -f "soulfu" ] && [ -f "$NICEWARE_DIR/Manual.htm" ] && [ -f "datafile.sdf" ] && [ -f "soulfu.png" ]; then
     cp soulfu ${PACKAGE_NAME}/usr/local/games/
     chmod +x ${PACKAGE_NAME}/usr/local/games/soulfu
     cp datafile.sdf ${PACKAGE_NAME}/usr/share/soulfu
-    cp Manual.htm ${PACKAGE_NAME}/usr/share/doc/${PACKAGE_NAME}/
+    cp "$NICEWARE_DIR/Manual.htm" ${PACKAGE_NAME}/usr/share/doc/${PACKAGE_NAME}/
     cp soulfu.png ${PACKAGE_NAME}/usr/share/soulfu
 else
     echo "Compilation might have failed. One or more required files are missing."
     exit 1
 fi
 
-# Create .desktop file
-cat <<EOL > ${PACKAGE_NAME}/usr/share/applications/soulfu.desktop
-[Desktop Entry]
-Type=Application
-Name=Soulfu
-Comment= Play a 3D action role-playing hack and slash dungeon crawler.
-Exec=/usr/local/games/soulfu
-Icon=/usr/share/soulfu/soulfu.png
-Terminal=false
-Categories=Game;
-Keywords=rpg;
-EOL
+# Copy soulfu.jpg if available
+if [ -f "$NICEWARE_DIR/soulfu.jpg" ]; then
+    cp "$NICEWARE_DIR/soulfu.jpg" ${PACKAGE_NAME}/usr/share/doc/${PACKAGE_NAME}/
+fi
+
+cp packaging/soulfu.desktop ${PACKAGE_NAME}/usr/share/applications/soulfu.desktop
 
 # Create control file
 cat <<EOL > ${PACKAGE_NAME}/DEBIAN/control

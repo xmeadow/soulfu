@@ -1,4 +1,4 @@
-# SoulFu: Back From The Dead
+# SoulFu (Secret of Ultimate Legendary Fantasy UNBROKEN)
 
 > SoulFu was created by Aaron Bishop, who established the foundation for a distinctive 3D action‑RPG dungeon crawler. This project focuses on preservation and continuation. Through targeted maintenance, bug fixes, restoration work, and thoughtful improvements to the existing systems, we aim to keep SoulFu functional, enjoyable, and true to its original spirit — unbroken.
 
@@ -44,22 +44,8 @@ If you're unsure where to start, feel free to join our Matrix channel: **[#soulf
 ---
 
 ## Building the game
-Clone the repository:
-```
-git clone --recurse-submodules <repolink> soulfu
-```
 
-Install the following tools and libraries:
-
-+ gcc,
-+ make,
-+ SDL 2.0,
-+ SDL2_net,
-+ libogg,
-+ libjpeg,
-+ vorbis,
-+ OpenGL development files.
-
+See [packaging/README.md](packaging/README.md) for full instructions on building from source.
 
 ## What has been done till now?
 + Tools for handling **datafile.sdf** (the archive where all game data is stored) have been implemented. Maybe they are not of the highest quality, but they get work done. To be precise:

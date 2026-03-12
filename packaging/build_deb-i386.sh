@@ -10,7 +10,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-PACKAGE_NAME="soulfu-bftd"
+PACKAGE_NAME="soulfu"
 ARCHITECTURE="i386"
 MAINTAINER="xmeadow <eke@rosauntier.com>"
 DESCRIPTION="A 3D action role-playing hack and slash dungeon crawler made by Aaron Bishop."

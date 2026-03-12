@@ -39,7 +39,8 @@ Section "Install"
     ; Add the application files
     File "soulfu.exe"
     File "datafile.sdf"
-    File "Manual.htm"
+    File "${NICEWARE_DIR}/Manual.htm"
+    File "${NICEWARE_DIR}/soulfu.jpg"
     File "SDL2.dll"
     File "SDL2_net.dll"
     File "libogg-0.dll"
@@ -60,7 +61,7 @@ Section "Install"
     ; Add registry entry for uninstaller
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "DisplayName" "SoulFu"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "UninstallString" '"$INSTDIR\Uninstall.exe"'
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "DisplayIcon" '"$INSTDIR\Chest.ico"'
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "DisplayIcon" '"$INSTDIR\soulfu.ico"'
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "Publisher" "${PUBLISHER}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "DisplayVersion" "${VERSION}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SoulFu" "URLInfoAbout" "${HOMEPAGE}"
@@ -77,6 +78,7 @@ Section "Uninstall"
     Delete "$INSTDIR\soulfu.exe"
     Delete "$INSTDIR\datafile.sdf"
     Delete "$INSTDIR\Manual.htm"
+    Delete "$INSTDIR\soulfu.jpg"
     Delete "$INSTDIR\SDL2.dll"
     Delete "$INSTDIR\SDL2_net.dll"
     Delete "$INSTDIR\libogg-0.dll"

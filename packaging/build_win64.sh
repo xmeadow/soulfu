@@ -11,7 +11,8 @@ if [ -z "$VERSION" ]; then
 fi
 
 INSTALLER_DIR="soulfu_win64"
-ICON_FILE="packaging\icons\hicolor\128x128\apps\soulfu.ico"
+ICON_FILE="packaging/icons/hicolor/128x128/apps/soulfu.ico"
+NICEWARE_DIR="packaging/niceware"
 OUTPUT_FILE="soulfu_win64_$VERSION.exe"
 ZIP_FILE="soulfu_win64_$VERSION.zip"
 
@@ -36,8 +37,8 @@ if [ ! -f "datafile.sdf" ]; then
     exit 1
 fi
 
-if [ ! -f "Manual.htm" ]; then
-    echo "Error: Manual.htm not found"
+if [ ! -f "$NICEWARE_DIR/Manual.htm" ]; then
+    echo "Error: $NICEWARE_DIR/Manual.htm not found"
     exit 1
 fi
 
@@ -86,12 +87,15 @@ mkdir -p "$INSTALLER_DIR"
 echo "Copying files to installer directory..."
 cp soulfu.exe "$INSTALLER_DIR/"
 cp datafile.sdf "$INSTALLER_DIR/"
-cp Manual.htm "$INSTALLER_DIR/"
+cp "$NICEWARE_DIR/Manual.htm" "$INSTALLER_DIR/"
 cp SDL2.dll "$INSTALLER_DIR/"
 cp SDL2_net.dll "$INSTALLER_DIR/"
 cp libogg-0.dll "$INSTALLER_DIR/"
 cp libvorbis-0.dll "$INSTALLER_DIR/"
 cp "$ICON_FILE" "$INSTALLER_DIR/"
+if [ -f "$NICEWARE_DIR/soulfu.jpg" ]; then
+    cp "$NICEWARE_DIR/soulfu.jpg" "$INSTALLER_DIR/"
+fi
 
 # Prepare license file (always needed for zip and potentially for NSIS)
 LICENSE_SOURCE=""
@@ -143,14 +147,17 @@ if ! command -v makensis >/dev/null 2>&1; then
     echo "Creating ZIP archive only..."
     ZIP_ONLY=1
 else
-    # Build the installer using NSIS
+    # NSIS needs soulfu.ico and license.txt in the CWD
+    cp "$ICON_FILE" soulfu.ico
+    cp "$LICENSE_SOURCE" license.txt
     echo "Building installer with NSIS..."
-    makensis -NOCD -DVERSION="$VERSION" -DPUBLISHER="$PUBLISHER" -DHOMEPAGE="$HOMEPAGE" -DCOMPANY_NAME="$COMPANY_NAME" -DOUTFILE="$OUTPUT_FILE" -DINSTDIR_NAME="soulfu_win64" packaging/soulfu.nsi
+    makensis -NOCD -DVERSION="$VERSION" -DPUBLISHER="$PUBLISHER" -DHOMEPAGE="$HOMEPAGE" -DCOMPANY_NAME="$COMPANY_NAME" -DOUTFILE="$OUTPUT_FILE" -DINSTDIR_NAME="soulfu_win64" -DNICEWARE_DIR="$NICEWARE_DIR" packaging/soulfu.nsi
+    rm -f soulfu.ico license.txt
 fi
 
-# Create portable version (zip file)
+# Create portable version (zip from staged installer directory for flat structure)
 echo "Creating portable version..."
-zip -r "$ZIP_FILE" soulfu.exe datafile.sdf Manual.htm SDL2.dll SDL2_net.dll libogg-0.dll libvorbis-0.dll "$ICON_FILE" license.txt
+(cd "$INSTALLER_DIR" && zip -r "../$ZIP_FILE" .)
 
 # Create packaging/bin directory if it doesn't exist
 mkdir -p packaging/bin
