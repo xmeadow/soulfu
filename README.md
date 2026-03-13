@@ -1,7 +1,3 @@
-# SoulFu (Secret of Ultimate Legendary Fantasy UNBROKEN)
-
-> SoulFu was created by Aaron Bishop, who established the foundation for a distinctive 3D action‑RPG dungeon crawler. This project focuses on preservation and continuation. Through targeted maintenance, bug fixes, restoration work, and thoughtful improvements to the existing systems, we aim to keep SoulFu functional, enjoyable, and true to its original spirit — unbroken.
-
 <div align="center">
 
 ![logo](soulfu_banner.png)
@@ -9,6 +5,8 @@
 [![Matrix](https://img.shields.io/matrix/soulfu%3Amatrix.org?label=Matrix)](https://matrix.to/#/#soulfu:matrix.org)
 
 </div>
+
+> SoulFu was created by Aaron Bishop, who established the foundation for a distinctive 3D action‑RPG dungeon crawler. This project focuses on preservation and continuation. Through targeted maintenance, bug fixes, restoration work, and thoughtful improvements to the existing systems, we aim to keep SoulFu functional, enjoyable, and true to its original spirit — unbroken.
 
 ---
 
