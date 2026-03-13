@@ -57,7 +57,7 @@ See [packaging/README.md](packaging/README.md) for full instructions on building
   + Squire AI by Poobah *[note: AI has been largely modified since the original release of Poobah's AI]*,
   + Mana Regeneration by Xuln *[note: it has been extended to Apprentices]*,
   + Saving System by Xuln *[note: some issues leading to loss of game progress have been fixed]*,
-  + Sky Box by MiR,
+  + [Sky Box](../../wiki/Mods:-Skybox) by MiR,
   + Arena by bravebebe.
 + 64 bit platform support
 + As noted above, AI has been improved significantly. Your helpers can now fight a bit better against bumpy enemies (like rats or slimes). Apprentices can cast spells in an intelligent manner. Some TALK commands are implemented, e.g. hold your ground, charge, follow, go to the nearest door. The work is in progress, so expect even more changes.
@@ -84,7 +84,7 @@ I do not promise anything as the project is done in my free time. I have some id
 
 But it's easier said than done.
 
-Take a look at **notes/Master To Do List.txt** for even more ideas by Aaron himself.
+Take a look at the [Master To Do List](../../wiki/Development:-Master-To-Do-List) for even more ideas by Aaron himself.
 
 ## Trivia
 + Build with DEVTOOL flag to enable development tools inside the game. Hold down the C key to make a relevant button appear.
