@@ -319,10 +319,12 @@ Setup()
 
 
   // Set the game seed...
-  // !!!BAD!!!
-  // !!!BAD!!!  Should probably do this better...
-  // !!!BAD!!!
-  seed = SystemGet(SYS_MAINVIDEOFRAME, 0, 0)
+  // For networked games, use shared game_seed so all machines generate the same map
+  // For local games, use the video frame counter for variety
+  if(SystemGet(SYS_NETWORKON, 0, 0))
+    seed = SystemGet(SYS_GAMESEED, 0, 0)
+  else
+    seed = SystemGet(SYS_MAINVIDEOFRAME, 0, 0)
   SystemSet(SYS_RANDOMSEED, 0, 0, seed)
 
 

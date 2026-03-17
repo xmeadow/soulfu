@@ -471,6 +471,21 @@
 #define SYS_LOAD                    228
 #define SYS_SCREENPARAMS            229
 #define SYS_PAUSE                   230
+#define SYS_HOSTGAME                232
+#define SYS_JOINGAMEIP              233
+#define SYS_LANGAMECOUNT            234
+#define SYS_LANGAMEINFO             235
+#define SYS_LANQUERY                236
+#define SYS_JOINSTATE               237
+#define SYS_LOCALIP                 238
+#define SYS_REMOTEINFO              239
+#define SYS_SENDREADY               240
+#define SYS_SENDSTARTGAME           241
+#define SYS_REMOTEREADY             242
+#define SYS_ALLREMOTESREADY         243
+#define SYS_REQUESTJOINSERVER       244
+#define SYS_SERVERPLAYERCOUNT       245
+#define SYS_REQUESTPLAYERCOUNT      246
 #define SYS_MODELCHECKHACK          255
 
 
