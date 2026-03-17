@@ -3,7 +3,7 @@ PKG ?= pkg-config
 TARGET = soulfu
 SRC = source/soulfu.c
 DEP = $(wildcard source/*.c source/*.h)
-LDLIBS = -lm $(shell $(PKG) --libs sdl2 ogg libjpeg vorbis gl)
+LDLIBS = -lm $(shell $(PKG) --libs sdl2 SDL2_net ogg libjpeg vorbis gl)
 FLAGS =
 
 debug: all

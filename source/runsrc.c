@@ -283,6 +283,21 @@ const char ff_map[MAX_FAST_FUNCTION][32] = {
 #define SYS_SAVE                    227
 #define SYS_LOAD                    228
 #define SYS_SCREENPARAMS            229
+#define SYS_HOSTGAME                230
+#define SYS_JOINGAMEIP              231
+#define SYS_LANGAMECOUNT            232
+#define SYS_LANGAMEINFO             233
+#define SYS_LANQUERY                234
+#define SYS_JOINSTATE               235
+#define SYS_LOCALIP                 236
+#define SYS_REMOTEINFO              237
+#define SYS_SENDREADY               238
+#define SYS_SENDSTARTGAME           239
+#define SYS_REMOTEREADY             240
+#define SYS_ALLREMOTESREADY         241
+#define SYS_REQUESTJOINSERVER       242
+#define SYS_SERVERPLAYERCOUNT       243
+#define SYS_REQUESTPLAYERCOUNT      244
 #define SYS_MODELCHECKHACK          255
 
 
@@ -2076,10 +2091,29 @@ signed char run_script(unsigned char* address, unsigned char* file_start, unsign
                             break;
                     #endif
                     case SYS_JOINGAME:
-                        // j is the continent, k is the direction, m is the letter...
-// !!!BAD!!!
-// !!!BAD!!!  Should probably rework for network...
-// !!!BAD!!!
+                        // Legacy handler - kept for compatibility
+                        break;
+                    case SYS_JOINGAMEIP:
+                        // j is a pointer to the IP string from the script
+                        if(j) network_join_game((unsigned char*) j);
+                        break;
+                    case SYS_HOSTGAME:
+                        network_host_game();
+                        break;
+                    case SYS_LANQUERY:
+                        network_lan_query();
+                        break;
+                    case SYS_SENDREADY:
+                        network_send_ready();
+                        break;
+                    case SYS_SENDSTARTGAME:
+                        network_send_start_game();
+                        break;
+                    case SYS_REQUESTJOINSERVER:
+                        network_request_join_server();
+                        break;
+                    case SYS_REQUESTPLAYERCOUNT:
+                        network_request_player_count();
                         break;
                     case SYS_STARTGAME:
                         play_game_active = TRUE;
@@ -2094,11 +2128,11 @@ log_message("INFO:   Starting game");
                         }
                         break;
                     case SYS_LEAVEGAME:
-// !!!BAD!!!
-// !!!BAD!!!  Should probably rework for network...
-// !!!BAD!!!
                         play_game_active = FALSE;
                         main_game_active = FALSE;
+                        lan_hosting = FALSE;
+                        join_state = 0;
+                        network_clear_remote_list();
                         break;
                     case SYS_LOCALPLAYER:
                         // j is the local player number (0-3), m is the character controlled by that player...
@@ -4026,30 +4060,15 @@ sprintf(DEBUG_STRING, "Autotrim length == %f", autotrim_length);
                         i = (int) ((((float) atan2(-j, k)) + PI) * (180/PI));
                         break;
                     case SYS_MAINSERVERLOCATED:
-// !!!BAD!!!
-// !!!BAD!!! Stupid...
-// !!!BAD!!!
-                        i = 0;
+                        i = main_server_on;
                         break;
                     case SYS_SHARDLIST:
-                        // j is continent, k is direction
-// !!!BAD!!!
-// !!!BAD!!!  Stupid...
-// !!!BAD!!!
                         i = 0;
                         break;
                     case SYS_SHARDLISTPING:
-                        // k is the letter...
-// !!!BAD!!!
-// !!!BAD!!!  Stupid...
-// !!!BAD!!!
                         i = 0;
                         break;
                     case SYS_SHARDLISTPLAYERS:
-                        // k is the letter...
-// !!!BAD!!!
-// !!!BAD!!!  Stupid...
-// !!!BAD!!!
                         i = 0;
                         break;
                     case SYS_VERSIONERROR:
@@ -4077,27 +4096,15 @@ sprintf(DEBUG_STRING, "Autotrim length == %f", autotrim_length);
                         i = main_game_active;
                         break;
                     case SYS_NETWORKGAMEACTIVE:
-// !!!BAD!!!
-// !!!BAD!!!  Stupid
-// !!!BAD!!!
-                        i = 0;
+                        i = main_game_active && (num_remote > 0);
                         break;
                     case SYS_TRYINGTOJOINGAME:
-// !!!BAD!!!
-// !!!BAD!!!  Stupid
-// !!!BAD!!!
-                        i = 0;
+                        i = (join_state >= 1 && join_state < 4);
                         break;
                     case SYS_JOINPROGRESS:
-// !!!BAD!!!
-// !!!BAD!!!  Stupid
-// !!!BAD!!!
-                        i = 0;
+                        i = join_state;
                         break;
                     case SYS_GAMESEED:
-// !!!BAD!!!
-// !!!BAD!!!  Stupid...  Change to map_seed...
-// !!!BAD!!!
                         i = game_seed;
                         break;
                     case SYS_LOCALPASSWORDCODE:
@@ -4110,17 +4117,99 @@ sprintf(DEBUG_STRING, "Autotrim length == %f", autotrim_length);
                         i = num_remote;
                         break;
                     case SYS_NETWORKFINISHED:
-                        // Only returns TRUE if all the network handling is done...
-// !!!BAD!!!
-// !!!BAD!!!  Stupid...
-// !!!BAD!!!
                         i = TRUE;
                         break;
                     case SYS_SERVERSTATISTICS:
-// !!!BAD!!!
-// !!!BAD!!!  Stupid...
-// !!!BAD!!!
                         i = 0;
+                        break;
+                    case SYS_SERVERPLAYERCOUNT:
+                        i = server_player_count;
+                        break;
+                    case SYS_LANGAMECOUNT:
+                        i = num_lan_games;
+                        break;
+                    case SYS_LANGAMEINFO:
+                        // j is the LAN game index, k is what info to get
+                        // k=0: IP address octet as string (returns host uint), k=1: player count, k=2: is valid
+                        if(j >= 0 && j < MAX_LAN_GAMES)
+                        {
+                            if(k == 0)
+                                i = lan_game_address[j].host;
+                            else if(k == 1)
+                                i = lan_game_players[j];
+                            else
+                                i = lan_game_on[j];
+                        }
+                        else
+                        {
+                            i = 0;
+                        }
+                        break;
+                    case SYS_JOINSTATE:
+                        i = join_state;
+                        break;
+                    case SYS_LOCALIP:
+                        // Returns local IP as a 32-bit value
+                        i = local_address.host;
+                        break;
+                    case SYS_REMOTEINFO:
+                        // j is compact index (0 to num_remote-1), k is info type
+                        // k=0: IP address, k=1: is active, k=2: is ready
+                        i = 0;
+                        {
+                            int ri, count = 0;
+                            for(ri = 0; ri < MAX_REMOTE; ri++)
+                            {
+                                if(remote_on[ri])
+                                {
+                                    if(count == j)
+                                    {
+                                        if(k == 0)
+                                            i = remote_address[ri].host;
+                                        else if(k == 1)
+                                            i = 1;
+                                        else if(k == 2)
+                                            i = remote_ready[ri];
+                                        break;
+                                    }
+                                    count++;
+                                }
+                            }
+                        }
+                        break;
+                    case SYS_REMOTEREADY:
+                        // j is compact index, returns ready state
+                        i = 0;
+                        {
+                            int ri, count = 0;
+                            for(ri = 0; ri < MAX_REMOTE; ri++)
+                            {
+                                if(remote_on[ri])
+                                {
+                                    if(count == j)
+                                    {
+                                        i = remote_ready[ri];
+                                        break;
+                                    }
+                                    count++;
+                                }
+                            }
+                        }
+                        break;
+                    case SYS_ALLREMOTESREADY:
+                        // Returns TRUE if all connected remotes are ready
+                        i = (num_remote > 0) ? TRUE : FALSE;
+                        {
+                            int ri;
+                            for(ri = 0; ri < MAX_REMOTE; ri++)
+                            {
+                                if(remote_on[ri] && !remote_ready[ri])
+                                {
+                                    i = FALSE;
+                                    break;
+                                }
+                            }
+                        }
                         break;
                     case SYS_LOCALPLAYER:
                         // j is the local player (0-3)...  Return value needn't be a valid character...
