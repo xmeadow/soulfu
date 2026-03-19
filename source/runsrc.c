@@ -2130,11 +2130,8 @@ log_message("INFO:   Starting game");
                         break;
                     case SYS_LEAVEGAME:
                         play_game_active = FALSE;
-                        main_game_active = FALSE;
                         pause_active = FALSE;
-                        lan_hosting = FALSE;
-                        join_state = 0;
-                        network_clear_remote_list();
+                        network_leave_game();
                         break;
                     case SYS_PAUSE:
                         pause_active = (unsigned char) m;
