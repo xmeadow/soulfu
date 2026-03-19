@@ -181,7 +181,6 @@ Refresh()
   // MODE_MENU - Main network menu
   // =====================================================================
   if(netmap_mode == MODE_MENU)
-    // Try to leave any game we're part of
     SystemSet(SYS_LEAVEGAME, 0, 0, 0)
 
     TitleBar(FALSE, 0.0, -7.0, StringLanguage(16))
@@ -358,13 +357,15 @@ Refresh()
     TitleBar(FALSE, 0.0, -8.0, "LAN Games")
     WindowBorder(FALSE, -12.0, -8.0, 24, 16, BORDER_FULL)
 
-    // Countdown for auto-refresh
+    // Auto-refresh: re-query periodically
     if(delay > 0)
       i = SystemGet(SYS_MAINFRAMESKIP, 0, 0)
       if(delay > i)
         delay = delay - i
       else
         delay = 0
+        SystemSet(SYS_LANQUERY, 0, 0, 0)
+        delay = 120
 
     // Show game list
     num_games = SystemGet(SYS_LANGAMECOUNT, 0, 0)
@@ -375,9 +376,8 @@ Refresh()
         WindowString(WHITE, 1.0, 3.0, "No games found")
     else
       i = 0
-      while(i < num_games && i < 8)
+      while(i < num_games && i < 6)
         if(SystemGet(SYS_LANGAMEINFO, i, 2))
-          // Format: "IP - N players"
           ip_addr = SystemGet(SYS_LANGAMEINFO, i, 0)
           num_players = SystemGet(SYS_LANGAMEINFO, i, 1)
           StringClear(String(0))
@@ -391,22 +391,16 @@ Refresh()
           StringAppend(String(0), " - ", 256)
           StringAppendNumber(String(0), num_players, 256)
           StringAppend(String(0), "p", 256)
-          if(i == lan_selected)
-            WindowString(YELLOW, 0.0, i, String(0))
-          else
-            WindowString(WHITE, 0.0, i, String(0))
-
-          // Click to select
-          button_five = ButtonImage(0, 0.0, i, 24, 1, NULL)
-          if(button_five == 255)
+          if(WindowYesBox(i == lan_selected, 0.5, 1 + i * 2) != (i == lan_selected))
             lan_selected = i
             ButtonSound()
+          WindowString(WHITE, 2.5, 1 + i * 2, String(0))
         i++
 
     // Buttons
-    button_four = ButtonImage(button_four, 0.0, 10.0, 8, 2, "Refresh")
-    button_seven = ButtonImage(button_seven, 8.0, 10.0, 8, 2, "Back")
-    button_eight = ButtonImage(button_eight, 16.0, 10.0, 8, 2, "Join")
+    button_four = ButtonImage(button_four, 0.0, 13.0, 8, 2, "Refresh")
+    button_seven = ButtonImage(button_seven, 8.0, 13.0, 8, 2, "Back")
+    button_eight = ButtonImage(button_eight, 16.0, 13.0, 8, 2, "Join")
 
     if(button_four == 250)
       ButtonSound()

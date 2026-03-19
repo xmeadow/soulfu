@@ -574,6 +574,7 @@ if(map_room_data[map_current_room][13] & MAP_ROOM_FLAG_OUTSIDE) {
     network_listen();
     network_lan_listen();
     network_server_tick();
+    network_peer_tick();
 
     // Send position updates to other players (~10 times per second)
     if(play_game_active && main_game_active && network_on && num_remote > 0)

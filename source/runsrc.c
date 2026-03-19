@@ -2129,10 +2129,7 @@ log_message("INFO:   Starting game");
                         break;
                     case SYS_LEAVEGAME:
                         play_game_active = FALSE;
-                        main_game_active = FALSE;
-                        lan_hosting = FALSE;
-                        join_state = 0;
-                        network_clear_remote_list();
+                        network_leave_game();
                         break;
                     case SYS_LOCALPLAYER:
                         // j is the local player number (0-3), m is the character controlled by that player...

@@ -8,7 +8,7 @@ TARGET = soulfu.exe
 SRC = source/soulfu.c
 DEP = $(wildcard source/*.c source/*.h)
 SYSROOT = /tmp/mingw64-sysroot
-LDLIBS = -L$(SYSROOT)/lib -lSDL2 -lSDL2_net -l:libjpeg.a -l:libvorbis.a -l:libogg.a -lopengl32 -liphlpapi
+LDLIBS = -L$(SYSROOT)/lib -lSDL2 -lSDL2_net -l:libjpeg.a -l:libvorbis.a -l:libogg.a -lopengl32 -liphlpapi -lws2_32
 FLAGS = -DDEVTOOL -I$(SYSROOT)/include
 
 all: $(TARGET) data
