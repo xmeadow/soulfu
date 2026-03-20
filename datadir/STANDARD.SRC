@@ -2116,7 +2116,7 @@ int AIScript()
 
 //-----------------------------------------------------------------------
 int Event()
-  int self, index, child
+  int self, index, child, netaction
   float angle, x, y, z, size, dx, dy, dis
   self = FindSelf()
 
@@ -2235,7 +2235,6 @@ int Event()
     self.hitsmax = 50
     self.hits = 50
     self.hitstap = 0
-    int netaction
     netaction = SystemGet(SYS_NETWORKSCRIPT, 0, NETWORK_SCRIPT_ACTION)
     if(netaction == ACTION_WALK || netaction == ACTION_STAND)
       self.daction = netaction

@@ -60,8 +60,13 @@ Refresh()
 
     // Check join state
     i = SystemGet(SYS_JOINSTATE, 0, 0)
-    if(i >= 4)
-      // Connected! Go to lobby
+    if(i == 5)
+      netmap_mode = MODE_HOST
+      button_one = 0
+      button_seven = 0
+      button_eight = 0
+      return 0
+    if(i == 4)
       netmap_mode = MODE_LOBBY
       button_one = 0
       button_seven = 0

@@ -36,7 +36,7 @@
 
 
 #define UDP_PORT 17859          // Orangeville, PA
-#define TCPIP_PORT 30628        // Colbert, GA
+#define TCPIP_PORT UDP_PORT
 #ifdef LIL_ENDIAN
     #define LOCALHOST ((127) | (0<<8) | (0<<16) | (1<<24))
 #else
@@ -55,7 +55,7 @@ unsigned char* netlist = NULL;
 IPaddress       local_address;
 IPaddress       main_server_address;
 unsigned char   main_server_on = FALSE;
-#define MAIN_SERVER_NAME "soulfu.untier.eu"
+#define MAIN_SERVER_NAME "192.168.1.4"
 
 
 UDPsocket       remote_socket;
@@ -1038,9 +1038,20 @@ void network_listen(void)
                         packet_read_unsigned_int(sun_time);
                         if(join_state >= 1)
                         {
-                            join_state = 4;  // Connected!
                             main_game_active = TRUE;
-                            log_message("INFO:     Join complete! (sun_time=%u)", sun_time);
+                            if(num_remote == 0 && !lan_hosting)
+                            {
+                                // First player on server — become the host
+                                lan_hosting = TRUE;
+                                lan_broadcast_timer = 0;
+                                join_state = 5;  // Hosting via server
+                                log_message("INFO:     Join complete — we are the host! (sun_time=%u)", sun_time);
+                            }
+                            else
+                            {
+                                join_state = 4;  // Connected as joiner
+                                log_message("INFO:     Join complete! (sun_time=%u)", sun_time);
+                            }
 
                             // Request IP lists to learn about other machines
                             for(i = 0; i < 16; i++)
