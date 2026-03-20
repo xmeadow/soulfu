@@ -55,7 +55,7 @@ unsigned char* netlist = NULL;
 IPaddress       local_address;
 IPaddress       main_server_address;
 unsigned char   main_server_on = FALSE;
-#define MAIN_SERVER_NAME "192.168.1.4"
+#define MAIN_SERVER_NAME "soulfu.untier.eu"
 
 
 UDPsocket       remote_socket;
@@ -90,6 +90,16 @@ unsigned char   join_state = 0;         // 0=idle, 1=sent request, 2=got reply, 
 unsigned short  join_timer = 0;
 IPaddress       join_target_address;
 
+// UDP hole punch state (for NAT traversal via master server)
+unsigned char   punch_active = FALSE;
+unsigned short  punch_timer = 0;
+unsigned char   punch_retries = 0;
+unsigned char   punch_role = 0;         // 0=joiner, 1=host
+IPaddress       punch_target;           // Peer's public IP:port as seen by server
+unsigned char   punch_continent, punch_direction, punch_letter, punch_pw_ok;
+#define PUNCH_INTERVAL      30          // Send punch every ~0.5 sec at 60fps
+#define PUNCH_MAX_RETRIES   20          // Try for ~10 seconds
+
 
 
 
@@ -120,6 +130,8 @@ IPaddress       join_target_address;
 #define PACKET_TYPE_REPORT_MACHINE_DOWN     28
 #define PACKET_TYPE_HEARTBEAT               29
 #define PACKET_TYPE_REPORT_POSITION         30
+#define PACKET_TYPE_PUNCH_REQUEST           31
+#define PACKET_TYPE_PUNCH_ACK               32
 
 #define EXECUTABLE_VERSION_NUMBER   1
 #define DATA_VERSION_NUMBER         1
@@ -424,9 +436,9 @@ unsigned char network_add_remote(unsigned char* remote_name)
 }
 
 //-----------------------------------------------------------------------------------------------
-unsigned char network_add_remote_ip(unsigned int host_ip)
+unsigned char network_add_remote_ip_port(unsigned int host_ip, unsigned short port_net_order)
 {
-    // <ZZ> Adds a remote by IP address directly (no DNS lookup needed)
+    // <ZZ> Adds a remote by IP address and port (for NAT traversal - port may differ from default)
     unsigned short i;
 
     if(num_remote < MAX_REMOTE)
@@ -438,7 +450,9 @@ unsigned char network_add_remote_ip(unsigned int host_ip)
             {
                 if(remote_address[i].host == host_ip)
                 {
-                    log_message("INFO:   Remote %d.%d.%d.%d already exists as remote %d",
+                    // Update port if it changed (NAT may reassign)
+                    remote_address[i].port = port_net_order;
+                    log_message("INFO:   Remote %d.%d.%d.%d already exists as remote %d (port updated)",
                         ((unsigned char*)&host_ip)[0], ((unsigned char*)&host_ip)[1],
                         ((unsigned char*)&host_ip)[2], ((unsigned char*)&host_ip)[3], i);
                     return TRUE;
@@ -455,6 +469,7 @@ unsigned char network_add_remote_ip(unsigned int host_ip)
                     ((unsigned char*)&host_ip)[0], ((unsigned char*)&host_ip)[1],
                     ((unsigned char*)&host_ip)[2], ((unsigned char*)&host_ip)[3], i);
                 remote_address[i].host = host_ip;
+                remote_address[i].port = port_net_order;
                 remote_on[i] = TRUE;
                 remote_ready[i] = FALSE;
                 remote_heartbeat[i] = 0;
@@ -466,6 +481,19 @@ unsigned char network_add_remote_ip(unsigned int host_ip)
         }
     }
     return FALSE;
+}
+
+//-----------------------------------------------------------------------------------------------
+unsigned char network_add_remote_ip(unsigned int host_ip)
+{
+    // <ZZ> Adds a remote by IP address with default game port (for LAN / backward compat)
+    unsigned short default_port;
+    #ifdef LIL_ENDIAN
+        default_port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
+    #else
+        default_port = UDP_PORT;
+    #endif
+    return network_add_remote_ip_port(host_ip, default_port);
 }
 
 //-----------------------------------------------------------------------------------------------
@@ -547,6 +575,43 @@ void network_peer_tick(void)
                 network_disconnect_remote(i);
             }
         }
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_punch_update(void)
+{
+    // <ZZ> Called every frame to send periodic UDP punch packets for NAT traversal
+    UDPpacket punch_pkt;
+
+    if(!punch_active) return;
+
+    punch_timer++;
+    if(punch_timer >= PUNCH_INTERVAL)
+    {
+        punch_timer = 0;
+        punch_retries++;
+
+        if(punch_retries > PUNCH_MAX_RETRIES)
+        {
+            // Hole punch failed
+            punch_active = FALSE;
+            join_state = 0;
+            log_message("ERROR:  Hole punch failed after %d retries", PUNCH_MAX_RETRIES);
+            return;
+        }
+
+        // Send PUNCH_ACK to peer's public endpoint
+        packet_begin(PACKET_TYPE_PUNCH_ACK);
+            packet_add_unsigned_char(punch_role);
+        packet_end_plain();
+
+        punch_pkt.channel = -1;
+        punch_pkt.data = packet_buffer;
+        punch_pkt.len = packet_length;
+        punch_pkt.maxlen = MAX_PACKET_SIZE;
+        punch_pkt.address = punch_target;
+        SDLNet_UDP_Send(remote_socket, -1, &punch_pkt);
     }
 }
 
@@ -792,11 +857,7 @@ void network_send(unsigned char send_code)
                             udp_packet.len = packet_length;
                             udp_packet.maxlen = MAX_PACKET_SIZE;
                             udp_packet.address.host = remote_address[i].host;
-                            #ifdef LIL_ENDIAN
-                                udp_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);  // I want to cry...
-                            #else
-                                udp_packet.address.port = UDP_PORT;
-                            #endif
+                            udp_packet.address.port = remote_address[i].port;
                             if(!SDLNet_UDP_Send(remote_socket, -1, &udp_packet))
                             {
                                 log_message("INFO:     Got error from SDLNet...  %s", SDLNet_GetError());
@@ -952,9 +1013,12 @@ void network_listen(void)
                         packet_read_unsigned_int(joiner_ip);
 
                         // Check if this COMMAND_JOIN is about ourselves
-                        if(joiner_ip == local_address.host || joiner_ip == my_public_ip)
+                        // When the server sends our own COMMAND_JOIN back, joiner_ip is our PUBLIC IP
+                        // which may differ from local_address.host (LAN IP)
+                        if(joiner_ip == local_address.host || joiner_ip == my_public_ip ||
+                           (udp_packet.address.host == main_server_address.host && join_state >= 1 && !lan_hosting && num_remote == 0))
                         {
-                            // Remember our public IP from the server
+                            // Learn our public IP from the server
                             if(my_public_ip == 0 && joiner_ip != local_address.host)
                             {
                                 my_public_ip = joiner_ip;
@@ -981,9 +1045,9 @@ void network_listen(void)
                         }
                         // If the packet came from the master server and we're hosting,
                         // the joiner might be us (our public IP that we don't know yet)
-                        else if(lan_hosting && udp_packet.address.host == main_server_address.host && my_public_ip == 0)
+                        else if(udp_packet.address.host == main_server_address.host && my_public_ip == 0)
                         {
-                            // This is likely our own registration echo - learn our public IP and ignore
+                            // Learn our public IP and ignore
                             my_public_ip = joiner_ip;
                             log_message("INFO:     Learned our public IP from server: %d.%d.%d.%d",
                                 ((unsigned char*)&my_public_ip)[0], ((unsigned char*)&my_public_ip)[1],
@@ -1079,7 +1143,7 @@ void network_listen(void)
                             packet_read_unsigned_char(rz);
                             packet_read_unsigned_char(pw);
                             packet_read_unsigned_int(machine_ip);
-                            if(machine_ip != 0 && machine_ip != local_address.host)
+                            if(machine_ip != 0 && machine_ip != local_address.host && machine_ip != my_public_ip)
                             {
                                 network_add_remote_ip(machine_ip);
                             }
@@ -1105,6 +1169,113 @@ void network_listen(void)
                                 network_delete_remote(i);
                                 break;
                             }
+                        }
+                    }
+                    else if(packet_buffer[0] == PACKET_TYPE_PUNCH_ACK)
+                    {
+                        // Peer responded to our punch - NAT hole is open!
+                        if(punch_active)
+                        {
+                            punch_active = FALSE;
+                            log_message("INFO:     Hole punch succeeded! Peer reached us.");
+
+                            // Add peer as remote using their actual source address
+                            network_add_remote_ip_port(udp_packet.address.host, udp_packet.address.port);
+
+                            if(punch_role == 1)
+                            {
+                                // We are the host - send COMMAND_JOIN to the joiner through the punched hole
+                                lan_hosting = TRUE;
+                                main_game_active = TRUE;
+                                lan_broadcast_timer = 0;
+
+                                packet_begin(PACKET_TYPE_COMMAND_JOIN);
+                                    packet_add_unsigned_char(punch_continent);
+                                    packet_add_unsigned_char(punch_direction);
+                                    packet_add_unsigned_char(punch_letter);
+                                    packet_add_unsigned_char(punch_pw_ok);
+                                    // Send our own IP so joiner knows who we are
+                                    {
+                                        unsigned int self_ip = local_address.host;
+                                        packet_add_unsigned_int(self_ip);
+                                    }
+                                    packet_add_unsigned_int(game_seed);
+                                packet_end_plain();
+                                {
+                                    UDPpacket reply_pkt;
+                                    reply_pkt.channel = -1;
+                                    reply_pkt.data = packet_buffer;
+                                    reply_pkt.len = packet_length;
+                                    reply_pkt.maxlen = MAX_PACKET_SIZE;
+                                    reply_pkt.address = udp_packet.address;
+                                    SDLNet_UDP_Send(remote_socket, -1, &reply_pkt);
+                                }
+
+                                // Notify master server
+                                packet_begin(PACKET_TYPE_COMMAND_JOIN);
+                                    packet_add_unsigned_char(punch_continent);
+                                    packet_add_unsigned_char(punch_direction);
+                                    packet_add_unsigned_char(punch_letter);
+                                    packet_add_unsigned_char(punch_pw_ok);
+                                    {
+                                        unsigned int peer_ip = udp_packet.address.host;
+                                        packet_add_unsigned_int(peer_ip);
+                                    }
+                                packet_end_plain();
+                                network_server_send();
+
+                                join_state = 5;  // Hosting
+                                log_message("INFO:     We are the host after hole punch");
+                            }
+                            else
+                            {
+                                // We are the joiner - host will send us COMMAND_JOIN shortly
+                                join_state = 2;
+                                log_message("INFO:     We are the joiner after hole punch, waiting for COMMAND_JOIN");
+                            }
+                        }
+                    }
+                    else if(packet_buffer[0] == PACKET_TYPE_PUNCH_REQUEST)
+                    {
+                        // Master server is telling us to punch through NAT to a peer
+                        unsigned int peer_ip;
+                        unsigned short peer_port_host;
+                        packet_read_unsigned_int(peer_ip);
+                        packet_read_unsigned_short(peer_port_host);
+                        packet_read_unsigned_char(punch_continent);
+                        packet_read_unsigned_char(punch_direction);
+                        packet_read_unsigned_char(punch_letter);
+                        packet_read_unsigned_char(punch_pw_ok);
+                        packet_read_unsigned_char(punch_role);
+
+                        punch_target.host = peer_ip;
+                        #ifdef LIL_ENDIAN
+                            punch_target.port = (peer_port_host>>8) | ((peer_port_host&255)<<8);
+                        #else
+                            punch_target.port = peer_port_host;
+                        #endif
+
+                        punch_active = TRUE;
+                        punch_timer = 0;
+                        punch_retries = 0;
+
+                        log_message("INFO:     Got PUNCH_REQUEST: peer=%d.%d.%d.%d:%d role=%d",
+                            ((unsigned char*)&peer_ip)[0], ((unsigned char*)&peer_ip)[1],
+                            ((unsigned char*)&peer_ip)[2], ((unsigned char*)&peer_ip)[3],
+                            peer_port_host, punch_role);
+
+                        // Send first punch immediately
+                        {
+                            UDPpacket punch_pkt;
+                            packet_begin(PACKET_TYPE_PUNCH_ACK);
+                                packet_add_unsigned_char(punch_role);
+                            packet_end_plain();
+                            punch_pkt.channel = -1;
+                            punch_pkt.data = packet_buffer;
+                            punch_pkt.len = packet_length;
+                            punch_pkt.maxlen = MAX_PACKET_SIZE;
+                            punch_pkt.address = punch_target;
+                            SDLNet_UDP_Send(remote_socket, -1, &punch_pkt);
                         }
                     }
                 }
@@ -1977,6 +2148,14 @@ void network_host_game(void)
             packet_add_unsigned_char(0);    // direction
             packet_add_unsigned_char(0);    // letter
             packet_add_unsigned_char(1);    // number of players
+            // Send LAN IP so server can detect same-network players
+            {
+                unsigned char* lip = (unsigned char*)&local_address.host;
+                packet_add_unsigned_char(lip[0]);
+                packet_add_unsigned_char(lip[1]);
+                packet_add_unsigned_char(lip[2]);
+                packet_add_unsigned_char(lip[3]);
+            }
         packet_end_plain();
         network_server_send();
         log_message("INFO:   Registered with master server");
@@ -2027,6 +2206,14 @@ void network_request_join_server(void)
         packet_add_unsigned_char(0);    // direction
         packet_add_unsigned_char(0);    // letter
         packet_add_unsigned_char(1);    // number of players
+        // Send LAN IP so server can detect same-network players
+        {
+            unsigned char* lip = (unsigned char*)&local_address.host;
+            packet_add_unsigned_char(lip[0]);
+            packet_add_unsigned_char(lip[1]);
+            packet_add_unsigned_char(lip[2]);
+            packet_add_unsigned_char(lip[3]);
+        }
     packet_end_plain();
     network_server_send();
     join_state = 1;
