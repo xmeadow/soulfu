@@ -114,6 +114,53 @@ jobs:
           path: packaging/bin/*.deb
 
   # ──────────────────────────────────────────────────────────────────────────
+  # Linux AMD64 (tar.gz)
+  # ──────────────────────────────────────────────────────────────────────────
+  linux-amd64:
+    name: Linux tar.gz (amd64)
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    continue-on-error: true
+
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y git
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            libsdl2-dev \
+            libsdl2-net-dev \
+            libogg-dev \
+            libvorbis-dev \
+            libjpeg62-turbo-dev \
+            libgl-dev
+
+      - name: Build Linux tar.gz
+        run: VERSION=${{ steps.ver.outputs.version }} bash packaging/build_linux-amd64.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soulfu-linux-amd64
+          path: packaging/bin/*.tar.gz
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Windows 64-bit
   # ──────────────────────────────────────────────────────────────────────────
   windows-win64:
@@ -221,7 +268,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
-    needs: [debian-amd64, debian-arm64, windows-win64]
+    needs: [debian-amd64, debian-arm64, linux-amd64, windows-win64]
     if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
