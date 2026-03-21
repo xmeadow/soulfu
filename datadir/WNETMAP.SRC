@@ -34,11 +34,12 @@ Spawn()
   button_six = 0
   button_seven = 0
   button_eight = 0
-  netmap_mode = MODE_MENU
+  netmap_mode = MODE_LAN
   lan_selected = -1
   lan_scroll = 0
-  delay = 0
+  delay = 120
   timer = 0
+  SystemSet(SYS_LANQUERY, 0, 0, 0)
 
 
 //-----------------------------------------------------------------------
@@ -104,7 +105,9 @@ Refresh()
     button_eight = ButtonImage(button_eight, 0.0, 3.0, 20, 2, String(0))
     if(button_eight == 250 || timer == 1)
       ButtonSound()
-      netmap_mode = MODE_MENU
+      netmap_mode = MODE_LAN
+      SystemSet(SYS_LANQUERY, 0, 0, 0)
+      delay = 120
       button_eight = 0
       timer = 0
     return 0
@@ -153,7 +156,9 @@ Refresh()
     if(button_seven == 250)
       ButtonSound()
       SystemSet(SYS_LEAVEGAME, 0, 0, 0)
-      netmap_mode = MODE_MENU
+      netmap_mode = MODE_LAN
+      SystemSet(SYS_LANQUERY, 0, 0, 0)
+      delay = 120
       button_seven = 0
     return 0
 
@@ -180,55 +185,6 @@ Refresh()
   // Center the window
   self.x = xadd
   self.y = 150.0
-
-
-  // =====================================================================
-  // MODE_MENU - Main network menu
-  // =====================================================================
-  if(netmap_mode == MODE_MENU)
-    SystemSet(SYS_LEAVEGAME, 0, 0, 0)
-
-    TitleBar(FALSE, 0.0, -7.0, StringLanguage(16))
-    WindowBorder(FALSE, -10.0, -7.0, 20, 14, BORDER_FULL)
-
-    WindowString(WHITE, 2.5, 0.5, "Network Game")
-
-    button_one = ButtonImage(button_one, 0.0, 2.0, 20, 2, "Host Game")
-    button_two = ButtonImage(button_two, 0.0, 4.0, 20, 2, "Join by IP")
-    button_three = ButtonImage(button_three, 0.0, 6.0, 20, 2, "LAN Games")
-    // Only show Find Game if master server is available
-    if(SystemGet(SYS_MAINSERVERLOCATED, 0, 0))
-      button_four = ButtonImage(button_four, 0.0, 8.0, 20, 2, "Find Game")
-    button_seven = ButtonImage(button_seven, 0.0, 10.0, 20, 2, "Back")
-
-    if(button_one == 250)
-      ButtonSound()
-      netmap_mode = MODE_HOST
-      SystemSet(SYS_HOSTGAME, 0, 0, 0)
-      button_one = 0
-    if(button_two == 250)
-      ButtonSound()
-      netmap_mode = MODE_JOINIP
-      SystemSet(SYS_MAKEINPUTACTIVE, 0, 0, 0)
-      button_two = 0
-    if(button_three == 250)
-      ButtonSound()
-      netmap_mode = MODE_LAN
-      SystemSet(SYS_LANQUERY, 0, 0, 0)
-      delay = 120
-      button_three = 0
-    if(button_four == 250)
-      ButtonSound()
-      // Request to join a game via master server
-      SystemSet(SYS_REQUESTJOINSERVER, 0, 0, 0)
-      timer = 15*60
-      netmap_mode = MODE_CONNECTING
-      button_four = 0
-    if(button_seven == 250)
-      ButtonSound()
-      Spawn(WINDOW, xadd, 150.0, 1.0, "FILE:WMAIN.RUN")
-      GoPoof(POOF_SELF)
-    return 0
 
 
   // =====================================================================
@@ -307,7 +263,9 @@ Refresh()
     if(button_seven == 250)
       ButtonSound()
       SystemSet(SYS_LEAVEGAME, 0, 0, 0)
-      netmap_mode = MODE_MENU
+      netmap_mode = MODE_LAN
+      SystemSet(SYS_LANQUERY, 0, 0, 0)
+      delay = 120
       button_seven = 0
     if(button_eight == 250)
       ButtonSound()
@@ -344,7 +302,9 @@ Refresh()
 
     if(button_seven == 250)
       ButtonSound()
-      netmap_mode = MODE_MENU
+      netmap_mode = MODE_LAN
+      SystemSet(SYS_LANQUERY, 0, 0, 0)
+      delay = 120
       button_seven = 0
     if(button_eight == 250)
       ButtonSound()
@@ -359,8 +319,8 @@ Refresh()
   // MODE_LAN - LAN game browser
   // =====================================================================
   if(netmap_mode == MODE_LAN)
-    TitleBar(FALSE, 0.0, -8.0, "LAN Games")
-    WindowBorder(FALSE, -12.0, -8.0, 24, 16, BORDER_FULL)
+    TitleBar(FALSE, 0.0, -10.0, StringLanguage(16))
+    WindowBorder(FALSE, -12.0, -10.0, 24, 20, BORDER_FULL)
 
     // Auto-refresh: re-query periodically
     if(delay > 0)
@@ -372,16 +332,17 @@ Refresh()
         SystemSet(SYS_LANQUERY, 0, 0, 0)
         delay = 120
 
-    // Show game list
+    // Show LAN game list
+    WindowString(WHITE, 0.0, 0.5, "LAN Games:")
     num_games = SystemGet(SYS_LANGAMECOUNT, 0, 0)
     if(num_games == 0)
       if(delay > 0)
-        WindowString(WHITE, 2.0, 3.0, "Searching...")
+        WindowString(WHITE, 2.0, 2.0, "Searching...")
       else
-        WindowString(WHITE, 1.0, 3.0, "No games found")
+        WindowString(WHITE, 1.0, 2.0, "No games found")
     else
       i = 0
-      while(i < num_games && i < 6)
+      while(i < num_games && i < 4)
         if(SystemGet(SYS_LANGAMEINFO, i, 2))
           ip_addr = SystemGet(SYS_LANGAMEINFO, i, 0)
           num_players = SystemGet(SYS_LANGAMEINFO, i, 1)
@@ -396,30 +357,17 @@ Refresh()
           StringAppend(String(0), " - ", 256)
           StringAppendNumber(String(0), num_players, 256)
           StringAppend(String(0), "p", 256)
-          if(WindowYesBox(i == lan_selected, 0.5, 1 + i * 2) != (i == lan_selected))
+          if(WindowYesBox(i == lan_selected, 0.5, 2 + i * 2) != (i == lan_selected))
             lan_selected = i
             ButtonSound()
-          WindowString(WHITE, 2.5, 1 + i * 2, String(0))
+          WindowString(WHITE, 2.5, 2 + i * 2, String(0))
         i++
 
-    // Buttons
-    button_four = ButtonImage(button_four, 0.0, 13.0, 8, 2, "Refresh")
-    button_seven = ButtonImage(button_seven, 8.0, 13.0, 8, 2, "Back")
-    button_eight = ButtonImage(button_eight, 16.0, 13.0, 8, 2, "Join")
-
-    if(button_four == 250)
-      ButtonSound()
-      SystemSet(SYS_LANQUERY, 0, 0, 0)
-      delay = 120
-      button_four = 0
-    if(button_seven == 250)
-      ButtonSound()
-      netmap_mode = MODE_MENU
-      button_seven = 0
+    // Join selected LAN game
+    button_eight = ButtonImage(button_eight, 0.0, 10.0, 24, 2, "Join")
     if(button_eight == 250)
       if(lan_selected >= 0 && SystemGet(SYS_LANGAMEINFO, lan_selected, 2))
         ButtonSound()
-        // Format the IP and join
         ip_addr = SystemGet(SYS_LANGAMEINFO, lan_selected, 0)
         StringClear(server_ip)
         StringAppendNumber(server_ip, (ip_addr) & 255, 15)
@@ -436,6 +384,34 @@ Refresh()
       else
         BuzzerSound()
         button_eight = 0
+
+    // Action buttons
+    button_one = ButtonImage(button_one, 0.0, 12.0, 24, 2, "Host Local Game")
+    button_two = ButtonImage(button_two, 0.0, 14.0, 24, 2, "Join by IP")
+    if(SystemGet(SYS_MAINSERVERLOCATED, 0, 0))
+      button_four = ButtonImage(button_four, 0.0, 16.0, 24, 2, "Online Matchmaking")
+    button_seven = ButtonImage(button_seven, 0.0, 18.0, 24, 2, "Back")
+
+    if(button_one == 250)
+      ButtonSound()
+      netmap_mode = MODE_HOST
+      SystemSet(SYS_HOSTGAME, 0, 0, 0)
+      button_one = 0
+    if(button_two == 250)
+      ButtonSound()
+      netmap_mode = MODE_JOINIP
+      SystemSet(SYS_MAKEINPUTACTIVE, 0, 0, 0)
+      button_two = 0
+    if(button_four == 250)
+      ButtonSound()
+      SystemSet(SYS_REQUESTJOINSERVER, 0, 0, 0)
+      timer = 15*60
+      netmap_mode = MODE_CONNECTING
+      button_four = 0
+    if(button_seven == 250)
+      ButtonSound()
+      Spawn(WINDOW, xadd, 150.0, 1.0, "FILE:WMAIN.RUN")
+      GoPoof(POOF_SELF)
     return 0
 
 
