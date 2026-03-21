@@ -64,12 +64,13 @@ unsigned short	remote_room_number[MAX_REMOTE];
 unsigned char	remote_is_neighbor[MAX_REMOTE];
 unsigned char	remote_on[MAX_REMOTE];
 unsigned char	remote_ready[MAX_REMOTE];
-unsigned short  remote_heartbeat[MAX_REMOTE];   // Frames since last packet from this remote
+unsigned char	remote_relay[MAX_REMOTE];        // TRUE if traffic routes through server relay
+unsigned int    remote_heartbeat[MAX_REMOTE];   // SDL_GetTicks() of last packet from this remote
 unsigned short  num_remote = 0;
-#define PEER_HEARTBEAT_INTERVAL  180    // Send heartbeat every ~3 seconds at 60fps
-#define PEER_TIMEOUT             600    // Disconnect after ~10 seconds of silence
-#define PACKET_TYPE_PEER_HEARTBEAT  9   // Peer-to-peer keepalive (distinct from server heartbeat 29)
-unsigned short  peer_heartbeat_timer = 0;
+#define PEER_HEARTBEAT_INTERVAL_MS  3000    // Send heartbeat every 3 seconds
+#define PEER_TIMEOUT_MS             15000   // Disconnect after 15 seconds of silence
+#define PACKET_TYPE_PEER_HEARTBEAT  9       // Peer-to-peer keepalive (distinct from server heartbeat 29)
+unsigned int    peer_heartbeat_last = 0;        // SDL_GetTicks() of last heartbeat sent
 
 
 // LAN broadcast discovery
@@ -92,12 +93,12 @@ IPaddress       join_target_address;
 
 // UDP hole punch state (for NAT traversal via master server)
 unsigned char   punch_active = FALSE;
-unsigned short  punch_timer = 0;
+unsigned int    punch_timer = 0;
 unsigned char   punch_retries = 0;
 unsigned char   punch_role = 0;         // 0=joiner, 1=host
 IPaddress       punch_target;           // Peer's public IP:port as seen by server
 unsigned char   punch_continent, punch_direction, punch_letter, punch_pw_ok;
-#define PUNCH_INTERVAL      30          // Send punch every ~0.5 sec at 60fps
+#define PUNCH_INTERVAL_MS   500         // Send punch every 0.5 seconds
 #define PUNCH_MAX_RETRIES   20          // Try for ~10 seconds
 
 
@@ -132,6 +133,8 @@ unsigned char   punch_continent, punch_direction, punch_letter, punch_pw_ok;
 #define PACKET_TYPE_REPORT_POSITION         30
 #define PACKET_TYPE_PUNCH_REQUEST           31
 #define PACKET_TYPE_PUNCH_ACK               32
+#define PACKET_TYPE_RELAY_REQUEST           33
+#define PACKET_TYPE_RELAY_DATA              34
 
 #define EXECUTABLE_VERSION_NUMBER   1
 #define DATA_VERSION_NUMBER         1
@@ -228,10 +231,10 @@ unsigned short network_script_mount_index;          // high-data only
 //-----------------------------------------------------------------------------------------------
 #define packet_add_unsigned_int(number)                                     \
 {                                                                           \
-    packet_buffer[packet_length] = (unsigned char) (packet_counter>>24);    \
-    packet_buffer[packet_length+1] = (unsigned char) (packet_counter>>16);  \
-    packet_buffer[packet_length+2] = (unsigned char) (packet_counter>>8);   \
-    packet_buffer[packet_length+3] = (unsigned char) packet_counter;        \
+    packet_buffer[packet_length] = (unsigned char) ((number)>>24);          \
+    packet_buffer[packet_length+1] = (unsigned char) ((number)>>16);        \
+    packet_buffer[packet_length+2] = (unsigned char) ((number)>>8);         \
+    packet_buffer[packet_length+3] = (unsigned char) (number);              \
     packet_length+=4;                                                       \
 }
 
@@ -370,6 +373,7 @@ void network_clear_remote_list()
     {
         remote_on[i] = FALSE;
         remote_ready[i] = FALSE;
+        remote_relay[i] = FALSE;
     }
 }
 
@@ -425,7 +429,7 @@ unsigned char network_add_remote(unsigned char* remote_name)
                 remote_on[i] = TRUE;
                 remote_room_number[i] = 65535;
                 remote_is_neighbor[i] = FALSE;
-                remote_heartbeat[i] = 0;
+                remote_heartbeat[i] = SDL_GetTicks();
                 num_remote++;
                 return TRUE;
             }
@@ -472,7 +476,8 @@ unsigned char network_add_remote_ip_port(unsigned int host_ip, unsigned short po
                 remote_address[i].port = port_net_order;
                 remote_on[i] = TRUE;
                 remote_ready[i] = FALSE;
-                remote_heartbeat[i] = 0;
+                remote_relay[i] = FALSE;
+                remote_heartbeat[i] = SDL_GetTicks();
                 remote_room_number[i] = 65535;
                 remote_is_neighbor[i] = FALSE;
                 num_remote++;
@@ -548,16 +553,16 @@ void network_disconnect_remote(unsigned short remote)
 //-----------------------------------------------------------------------------------------------
 void network_peer_tick(void)
 {
-    // Send peer heartbeats and check for timeouts
+    // Send peer heartbeats and check for timeouts (time-based, not frame-based)
     unsigned short i;
+    unsigned int now = SDL_GetTicks();
 
     if(!network_on || num_remote == 0) return;
 
     // Send heartbeat to all remotes periodically
-    peer_heartbeat_timer++;
-    if(peer_heartbeat_timer >= PEER_HEARTBEAT_INTERVAL)
+    if(now - peer_heartbeat_last >= PEER_HEARTBEAT_INTERVAL_MS)
     {
-        peer_heartbeat_timer = 0;
+        peer_heartbeat_last = now;
         packet_begin(PACKET_TYPE_PEER_HEARTBEAT);
         packet_end();
         network_send(NETWORK_ALL_REMOTES_IN_GAME);
@@ -568,8 +573,7 @@ void network_peer_tick(void)
     {
         if(remote_on[i])
         {
-            remote_heartbeat[i]++;
-            if(remote_heartbeat[i] >= PEER_TIMEOUT)
+            if(now - remote_heartbeat[i] >= PEER_TIMEOUT_MS)
             {
                 log_message("INFO:   Remote %d timed out", i);
                 network_disconnect_remote(i);
@@ -579,25 +583,38 @@ void network_peer_tick(void)
 }
 
 //-----------------------------------------------------------------------------------------------
+void network_server_send(void);  // Forward declaration for relay/punch code
+
 void network_punch_update(void)
 {
     // <ZZ> Called every frame to send periodic UDP punch packets for NAT traversal
     UDPpacket punch_pkt;
+    unsigned int now;
 
     if(!punch_active) return;
 
-    punch_timer++;
-    if(punch_timer >= PUNCH_INTERVAL)
+    now = SDL_GetTicks();
+    if(now - punch_timer >= PUNCH_INTERVAL_MS)
     {
-        punch_timer = 0;
+        punch_timer = now;
         punch_retries++;
 
         if(punch_retries > PUNCH_MAX_RETRIES)
         {
-            // Hole punch failed
+            // Hole punch failed - request relay from server
             punch_active = FALSE;
-            join_state = 0;
-            log_message("ERROR:  Hole punch failed after %d retries", PUNCH_MAX_RETRIES);
+            log_message("INFO:   Hole punch failed after %d retries, requesting relay", PUNCH_MAX_RETRIES);
+            packet_begin(PACKET_TYPE_RELAY_REQUEST);
+            {
+                unsigned char* pip = (unsigned char*)&punch_target.host;
+                packet_add_unsigned_char(pip[0]);
+                packet_add_unsigned_char(pip[1]);
+                packet_add_unsigned_char(pip[2]);
+                packet_add_unsigned_char(pip[3]);
+            }
+            packet_end_plain();
+            network_server_send();
+            // Don't reset join_state - wait for RELAY_DATA confirmation
             return;
         }
 
@@ -852,15 +869,50 @@ void network_send(unsigned char send_code)
                         if(remote_address[i].host != LOCALHOST && remote_address[i].host != local_address.host)
 #endif
                         {
-                            udp_packet.channel = -1;
-                            udp_packet.data = packet_buffer;
-                            udp_packet.len = packet_length;
-                            udp_packet.maxlen = MAX_PACKET_SIZE;
-                            udp_packet.address.host = remote_address[i].host;
-                            udp_packet.address.port = remote_address[i].port;
-                            if(!SDLNet_UDP_Send(remote_socket, -1, &udp_packet))
+                            if(remote_relay[i])
                             {
-                                log_message("INFO:     Got error from SDLNet...  %s", SDLNet_GetError());
+                                // Wrap in RELAY_DATA and send through server
+                                unsigned short original_len = packet_length;
+                                unsigned char relay_temp[MAX_PACKET_SIZE];
+                                memcpy(relay_temp, packet_buffer, original_len);
+
+                                log_message("INFO:     Relay send: type=%d len=%d to %d.%d.%d.%d",
+                                    relay_temp[0], original_len,
+                                    ((unsigned char*)&remote_address[i].host)[0],
+                                    ((unsigned char*)&remote_address[i].host)[1],
+                                    ((unsigned char*)&remote_address[i].host)[2],
+                                    ((unsigned char*)&remote_address[i].host)[3]);
+
+                                packet_begin(PACKET_TYPE_RELAY_DATA);
+                                {
+                                    unsigned char* pip = (unsigned char*)&remote_address[i].host;
+                                    packet_add_unsigned_char(pip[0]);
+                                    packet_add_unsigned_char(pip[1]);
+                                    packet_add_unsigned_char(pip[2]);
+                                    packet_add_unsigned_char(pip[3]);
+                                }
+                                packet_add_unsigned_short(original_len);
+                                memcpy(packet_buffer + packet_length, relay_temp, original_len);
+                                packet_length += original_len;
+                                packet_end_plain();
+                                network_server_send();
+
+                                // Restore original packet for other remotes
+                                memcpy(packet_buffer, relay_temp, original_len);
+                                packet_length = original_len;
+                            }
+                            else
+                            {
+                                udp_packet.channel = -1;
+                                udp_packet.data = packet_buffer;
+                                udp_packet.len = packet_length;
+                                udp_packet.maxlen = MAX_PACKET_SIZE;
+                                udp_packet.address.host = remote_address[i].host;
+                                udp_packet.address.port = remote_address[i].port;
+                                if(!SDLNet_UDP_Send(remote_socket, -1, &udp_packet))
+                                {
+                                    log_message("INFO:     Got error from SDLNet...  %s", SDLNet_GetError());
+                                }
                             }
                         }
                         else
@@ -1171,6 +1223,180 @@ void network_listen(void)
                             }
                         }
                     }
+                    else if(packet_buffer[0] == PACKET_TYPE_RELAY_DATA)
+                    {
+                        // Relay data from the master server
+                        unsigned int relay_peer_ip;
+                        unsigned short relay_blob_len;
+                        // Read IP as raw bytes to preserve network byte order
+                        {
+                            unsigned char ip_bytes[4];
+                            packet_read_unsigned_char(ip_bytes[0]);
+                            packet_read_unsigned_char(ip_bytes[1]);
+                            packet_read_unsigned_char(ip_bytes[2]);
+                            packet_read_unsigned_char(ip_bytes[3]);
+                            memcpy(&relay_peer_ip, ip_bytes, 4);
+                        }
+                        packet_read_unsigned_short(relay_blob_len);
+
+                        if(relay_blob_len == 0)
+                        {
+                            // Relay established confirmation
+                            log_message("INFO:     Relay established with peer %d.%d.%d.%d",
+                                ((unsigned char*)&relay_peer_ip)[0], ((unsigned char*)&relay_peer_ip)[1],
+                                ((unsigned char*)&relay_peer_ip)[2], ((unsigned char*)&relay_peer_ip)[3]);
+
+                            // Add peer as remote and mark as relayed
+                            network_add_remote_ip_port(relay_peer_ip, 0);
+                            repeat(i, MAX_REMOTE)
+                            {
+                                if(remote_on[i] && remote_address[i].host == relay_peer_ip)
+                                {
+                                    remote_relay[i] = TRUE;
+                                    break;
+                                }
+                            }
+
+                            // Continue join flow like punch succeeded
+                            if(punch_role == 1)
+                            {
+                                // We are the host
+                                lan_hosting = TRUE;
+                                main_game_active = TRUE;
+                                lan_broadcast_timer = 0;
+
+                                packet_begin(PACKET_TYPE_COMMAND_JOIN);
+                                    packet_add_unsigned_char(punch_continent);
+                                    packet_add_unsigned_char(punch_direction);
+                                    packet_add_unsigned_char(punch_letter);
+                                    packet_add_unsigned_char(punch_pw_ok);
+                                    {
+                                        unsigned int self_ip = local_address.host;
+                                        packet_add_unsigned_int(self_ip);
+                                    }
+                                    packet_add_unsigned_int(game_seed);
+                                packet_end_plain();
+                                // Send via relay
+                                {
+                                    unsigned short cmd_len = packet_length;
+                                    unsigned char cmd_buf[MAX_PACKET_SIZE];
+                                    memcpy(cmd_buf, packet_buffer, cmd_len);
+                                    packet_begin(PACKET_TYPE_RELAY_DATA);
+                                    {
+                                        unsigned char* pip = (unsigned char*)&relay_peer_ip;
+                                        packet_add_unsigned_char(pip[0]);
+                                        packet_add_unsigned_char(pip[1]);
+                                        packet_add_unsigned_char(pip[2]);
+                                        packet_add_unsigned_char(pip[3]);
+                                    }
+                                    packet_add_unsigned_short(cmd_len);
+                                    memcpy(packet_buffer + packet_length, cmd_buf, cmd_len);
+                                    packet_length += cmd_len;
+                                    packet_end_plain();
+                                    network_server_send();
+                                }
+
+                                // Notify master server
+                                packet_begin(PACKET_TYPE_COMMAND_JOIN);
+                                    packet_add_unsigned_char(punch_continent);
+                                    packet_add_unsigned_char(punch_direction);
+                                    packet_add_unsigned_char(punch_letter);
+                                    packet_add_unsigned_char(punch_pw_ok);
+                                    {
+                                        unsigned char* pip = (unsigned char*)&relay_peer_ip;
+                                        packet_add_unsigned_char(pip[0]);
+                                        packet_add_unsigned_char(pip[1]);
+                                        packet_add_unsigned_char(pip[2]);
+                                        packet_add_unsigned_char(pip[3]);
+                                    }
+                                packet_end_plain();
+                                network_server_send();
+
+                                join_state = 5;
+                                log_message("INFO:     We are the host via relay");
+                            }
+                            else
+                            {
+                                join_state = 2;
+                                log_message("INFO:     We are the joiner via relay, waiting for COMMAND_JOIN");
+                            }
+                        }
+                        else
+                        {
+                            // Unwrap relayed game data and process as if it arrived from peer
+                            log_message("INFO:     Relay recv: blob_len=%d from %d.%d.%d.%d readpos=%d pktlen=%d",
+                                relay_blob_len,
+                                ((unsigned char*)&relay_peer_ip)[0], ((unsigned char*)&relay_peer_ip)[1],
+                                ((unsigned char*)&relay_peer_ip)[2], ((unsigned char*)&relay_peer_ip)[3],
+                                packet_readpos, packet_length);
+                            if(packet_readpos + relay_blob_len <= packet_length)
+                            {
+                                // Reset heartbeat for this relayed remote
+                                unsigned char heartbeat_found = FALSE;
+                                repeat(i, MAX_REMOTE)
+                                {
+                                    if(remote_on[i] && remote_address[i].host == relay_peer_ip)
+                                    {
+                                        remote_heartbeat[i] = SDL_GetTicks();
+                                        heartbeat_found = TRUE;
+                                        break;
+                                    }
+                                }
+                                log_message("INFO:     Relay heartbeat reset: %s", heartbeat_found ? "yes" : "no - remote not found");
+
+                                memmove(packet_buffer, packet_buffer + packet_readpos, relay_blob_len);
+                                packet_length = relay_blob_len;
+                                udp_packet.address.host = relay_peer_ip;
+
+                                // Process as server or game packet
+                                if(packet_buffer[0] >= PACKET_TYPE_REQUEST_SHARD_LIST)
+                                {
+                                    // ServerFu packet (e.g. COMMAND_JOIN sent via relay)
+                                    if(packet_valid())
+                                    {
+                                        packet_readpos = PACKET_HEADER_SIZE;
+                                        // Re-enter server packet handling for this unwrapped packet
+                                        // Handle COMMAND_JOIN specifically for relay join flow
+                                        if(packet_buffer[0] == PACKET_TYPE_COMMAND_JOIN)
+                                        {
+                                            unsigned char r_continent, r_direction, r_letter, r_pw_ok;
+                                            unsigned int r_joiner_ip;
+                                            packet_read_unsigned_char(r_continent);
+                                            packet_read_unsigned_char(r_direction);
+                                            packet_read_unsigned_char(r_letter);
+                                            packet_read_unsigned_char(r_pw_ok);
+                                            packet_read_unsigned_int(r_joiner_ip);
+                                            if(join_state >= 1 && r_pw_ok == PASSWORD_OKAY_VALUE)
+                                            {
+                                                if(packet_readpos + 4 <= packet_length)
+                                                {
+                                                    packet_read_unsigned_int(game_seed);
+                                                    log_message("INFO:     Got game seed via relay: %u", game_seed);
+                                                }
+                                                packet_begin(PACKET_TYPE_REPLY_ROGER);
+                                                packet_end_plain();
+                                                network_server_send();
+                                                join_state = 4;
+                                                main_game_active = TRUE;
+                                                log_message("INFO:     Join accepted via relay");
+                                            }
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // Encrypted game packet - decrypt and process
+                                    packet_decrypt();
+                                    if(packet_valid())
+                                    {
+                                        packet_readpos = PACKET_HEADER_SIZE;
+                                        // Jump into game packet processing
+                                        goto relay_process_game_packet;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     else if(packet_buffer[0] == PACKET_TYPE_PUNCH_ACK)
                     {
                         // Peer responded to our punch - NAT hole is open!
@@ -1240,7 +1466,16 @@ void network_listen(void)
                         // Master server is telling us to punch through NAT to a peer
                         unsigned int peer_ip;
                         unsigned short peer_port_host;
-                        packet_read_unsigned_int(peer_ip);
+                        // Read IP as raw bytes to preserve network byte order
+                        // (server sends via memcpy, not big-endian encoded)
+                        {
+                            unsigned char ip_bytes[4];
+                            packet_read_unsigned_char(ip_bytes[0]);
+                            packet_read_unsigned_char(ip_bytes[1]);
+                            packet_read_unsigned_char(ip_bytes[2]);
+                            packet_read_unsigned_char(ip_bytes[3]);
+                            memcpy(&peer_ip, ip_bytes, 4);
+                        }
                         packet_read_unsigned_short(peer_port_host);
                         packet_read_unsigned_char(punch_continent);
                         packet_read_unsigned_char(punch_direction);
@@ -1256,7 +1491,7 @@ void network_listen(void)
                         #endif
 
                         punch_active = TRUE;
-                        punch_timer = 0;
+                        punch_timer = SDL_GetTicks();
                         punch_retries = 0;
 
                         log_message("INFO:     Got PUNCH_REQUEST: peer=%d.%d.%d.%d:%d role=%d",
@@ -1293,7 +1528,7 @@ void network_listen(void)
                     {
                         if(remote_on[ri] && remote_address[ri].host == udp_packet.address.host)
                         {
-                            remote_heartbeat[ri] = 0;
+                            remote_heartbeat[ri] = SDL_GetTicks();
                             break;
                         }
                     }
@@ -1305,6 +1540,7 @@ void network_listen(void)
                 if(udp_packet.address.host != LOCALHOST && udp_packet.address.host != local_address.host)
 #endif
                 {
+                    relay_process_game_packet:
                     packet_readpos = PACKET_HEADER_SIZE;
                     if(packet_buffer[0] == PACKET_TYPE_CHAT)
                     {
