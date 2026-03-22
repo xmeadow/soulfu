@@ -1476,7 +1476,8 @@ void character_update_all()
 
                 // Rotate to face the desired x, y coordinates
                 turning = FALSE;
-                if(action_can_turn[character_data[65] & (ACTION_MAX-1)] && (*((unsigned short*) (character_data+42)) == 0))
+                // Skip gotoxy-based movement/action for remote characters (network controls their state)
+                if(action_can_turn[character_data[65] & (ACTION_MAX-1)] && (*((unsigned short*) (character_data+42)) == 0) && *((unsigned int*)(character_data+252)) == 0)
                 {
                     // Character is able to turn...
                     x = (*((float*) (character_data+12)));
