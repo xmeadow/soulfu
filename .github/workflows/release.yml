@@ -182,16 +182,8 @@ jobs:
             echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Cache macOS sysroot
-        id: cache-sysroot
-        uses: actions/cache@v4
-        with:
-          path: /tmp/macos-sysroot
-          key: macos-amd64-sysroot-${{ hashFiles('packaging/setup_macos_sysroot.sh') }}
-
-      - name: Set up macOS sysroot
-        if: steps.cache-sysroot.outputs.cache-hit != 'true'
-        run: bash packaging/setup_macos_sysroot.sh
+      - name: Install build dependencies
+        run: brew install sdl2 sdl2_net libogg libvorbis jpeg-turbo pkg-config
 
       - name: Build macOS DMG
         run: VERSION=${{ steps.ver.outputs.version }} bash packaging/build_macos-amd64.sh

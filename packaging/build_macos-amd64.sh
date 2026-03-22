@@ -3,7 +3,11 @@
 # macOS AMD64 DMG build script for SoulFu
 # Usage: VERSION=1.8 ./packaging/build_macos-amd64.sh
 #
-# Requires: setup_macos_sysroot.sh to have been run first.
+# Supports two modes:
+#   - Sysroot mode: if /tmp/macos-sysroot exists, uses Makefile.macos
+#     (for machines without working Homebrew — run setup_macos_sysroot.sh first)
+#   - Brew/pkg-config mode: otherwise, uses the default Makefile
+#     (for CI runners or machines with Homebrew deps installed)
 
 set -e
 
@@ -20,15 +24,17 @@ SYSROOT="/tmp/macos-sysroot"
 APP="SoulFu.app"
 DMG_NAME="packaging/bin/${PACKAGE_NAME}_${VERSION}_macos-${ARCHITECTURE}.dmg"
 
-# Verify sysroot exists
-if [ ! -d "$SYSROOT/Frameworks/SDL2.framework" ]; then
-    echo "Error: Sysroot not found. Run packaging/setup_macos_sysroot.sh first."
-    exit 1
-fi
-
-# Compile
+# Compile — pick sysroot or pkg-config mode
 rm -f soulfu
-make -f Makefile.macos release
+if [ -d "$SYSROOT/Frameworks/SDL2.framework" ]; then
+    echo "Using sysroot at $SYSROOT"
+    USE_SYSROOT=1
+    make -f Makefile.macos release
+else
+    echo "Using system libraries (pkg-config)"
+    USE_SYSROOT=0
+    make release
+fi
 
 # Check if required files exist
 if [ ! -f "soulfu" ] || [ ! -f "datafile.sdf" ]; then
@@ -43,12 +49,73 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resourc
 # Copy binary
 cp soulfu "$APP/Contents/MacOS/soulfu-bin"
 
-# Fix dylib load paths
+# Add rpath for frameworks
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/soulfu-bin"
-install_name_tool -change "$SYSROOT/lib/libogg.0.dylib" @executable_path/../Frameworks/libogg.0.dylib "$APP/Contents/MacOS/soulfu-bin"
-install_name_tool -change "$SYSROOT/lib/libvorbis.0.dylib" @executable_path/../Frameworks/libvorbis.0.dylib "$APP/Contents/MacOS/soulfu-bin"
-# libjpeg may use @rpath — normalize it too
-install_name_tool -change @rpath/libjpeg.62.dylib @executable_path/../Frameworks/libjpeg.62.dylib "$APP/Contents/MacOS/soulfu-bin" 2>/dev/null || true
+
+# Resolve dylib paths and bundle them
+# For each dylib linked by the binary, copy it into Frameworks and fix the load path
+fix_dylib() {
+    local old_path="$1"
+    local lib_name="$2"
+    install_name_tool -change "$old_path" "@executable_path/../Frameworks/$lib_name" "$APP/Contents/MacOS/soulfu-bin" 2>/dev/null || true
+}
+
+if [ "$USE_SYSROOT" -eq 1 ]; then
+    LIB_DIR="$SYSROOT/lib"
+    FW_DIR="$SYSROOT/Frameworks"
+else
+    LIB_DIR="$(brew --prefix)/lib"
+    FW_DIR="$(brew --prefix)/opt/sdl2/lib:$(brew --prefix)/opt/sdl2_net/lib"
+fi
+
+# Copy and fix SDL2 framework
+if [ "$USE_SYSROOT" -eq 1 ] && [ -d "$SYSROOT/Frameworks/SDL2.framework" ]; then
+    cp -R "$SYSROOT/Frameworks/SDL2.framework" "$APP/Contents/Frameworks/"
+    cp -R "$SYSROOT/Frameworks/SDL2_net.framework" "$APP/Contents/Frameworks/"
+else
+    # Brew installs frameworks here
+    SDL2_FW="$(brew --prefix sdl2)/lib/SDL2.framework"
+    SDL2NET_FW="$(brew --prefix sdl2_net)/lib/SDL2_net.framework"
+    if [ -d "$SDL2_FW" ]; then
+        cp -R "$SDL2_FW" "$APP/Contents/Frameworks/"
+        cp -R "$SDL2NET_FW" "$APP/Contents/Frameworks/"
+    else
+        # Brew may install as dylibs instead of frameworks
+        cp "$(brew --prefix sdl2)/lib/libSDL2.dylib" "$APP/Contents/Frameworks/"
+        cp "$(brew --prefix sdl2_net)/lib/libSDL2_net.dylib" "$APP/Contents/Frameworks/"
+    fi
+fi
+
+# Copy and fix libogg, libvorbis, libjpeg dylibs
+for lib in libogg.0.dylib libvorbis.0.dylib libjpeg.62.dylib; do
+    # Find the actual dylib
+    if [ "$USE_SYSROOT" -eq 1 ]; then
+        src="$SYSROOT/lib/$lib"
+    else
+        src="$(find "$(brew --prefix)/lib" "$(brew --prefix)/opt" -name "$lib" 2>/dev/null | head -1)"
+    fi
+    if [ -f "$src" ]; then
+        cp "$src" "$APP/Contents/Frameworks/"
+        # Get the install name recorded in the binary and fix it
+        old_id="$(otool -D "$src" | tail -1)"
+        fix_dylib "$old_id" "$lib"
+        # Also try common path patterns
+        fix_dylib "$SYSROOT/lib/$lib" "$lib"
+        fix_dylib "@rpath/$lib" "$lib"
+        # Set the dylib's own install name
+        install_name_tool -id "@executable_path/../Frameworks/$lib" "$APP/Contents/Frameworks/$lib" 2>/dev/null || true
+    fi
+done
+
+# Fix libvorbis -> libogg internal dependency
+VORBIS_LIB="$APP/Contents/Frameworks/libvorbis.0.dylib"
+if [ -f "$VORBIS_LIB" ]; then
+    # Find whatever path libogg is referenced as and rewrite it
+    ogg_ref="$(otool -L "$VORBIS_LIB" | grep libogg | awk '{print $1}')"
+    if [ -n "$ogg_ref" ]; then
+        install_name_tool -change "$ogg_ref" "@executable_path/../Frameworks/libogg.0.dylib" "$VORBIS_LIB"
+    fi
+fi
 
 # Create launcher script (sets CWD to Resources for datafile.sdf)
 cat > "$APP/Contents/MacOS/soulfu" << 'SCRIPT'
@@ -58,18 +125,6 @@ cd "$DIR/../Resources"
 exec "$DIR/soulfu-bin" "$@"
 SCRIPT
 chmod +x "$APP/Contents/MacOS/soulfu"
-
-# Copy frameworks
-cp -R "$SYSROOT/Frameworks/SDL2.framework" "$APP/Contents/Frameworks/"
-cp -R "$SYSROOT/Frameworks/SDL2_net.framework" "$APP/Contents/Frameworks/"
-
-# Copy dylibs
-cp "$SYSROOT/lib/libogg.0.dylib" "$APP/Contents/Frameworks/"
-cp "$SYSROOT/lib/libvorbis.0.dylib" "$APP/Contents/Frameworks/"
-cp "$SYSROOT/lib/libjpeg.62.dylib" "$APP/Contents/Frameworks/"
-
-# Fix libvorbis -> libogg dependency
-install_name_tool -change "$SYSROOT/lib/libogg.0.dylib" @executable_path/../Frameworks/libogg.0.dylib "$APP/Contents/Frameworks/libvorbis.0.dylib"
 
 # Copy game data
 cp datafile.sdf "$APP/Contents/Resources/"
