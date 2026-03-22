@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# macOS AMD64 DMG build script for SoulFu
-# Usage: VERSION=1.8 ./packaging/build_macos-amd64.sh
+# macOS ARM64 DMG build script for SoulFu
+# Usage: VERSION=1.8 ./packaging/build_macos-arm64.sh
 #
 # Supports two modes:
 #   - Sysroot mode: if /tmp/macos-sysroot exists, uses Makefile.macos
@@ -19,7 +19,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 PACKAGE_NAME="soulfu"
-ARCHITECTURE="amd64"
+ARCHITECTURE="arm64"
 SYSROOT="/tmp/macos-sysroot"
 APP="SoulFu.app"
 DMG_NAME="packaging/bin/${PACKAGE_NAME}_${VERSION}_macos-${ARCHITECTURE}.dmg"
