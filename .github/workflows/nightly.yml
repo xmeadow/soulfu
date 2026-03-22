@@ -134,6 +134,39 @@ jobs:
           path: packaging/bin/*.tar.gz
 
   # ──────────────────────────────────────────────────────────────────────────
+  # macOS AMD64 (DMG)
+  # ──────────────────────────────────────────────────────────────────────────
+  macos-amd64:
+    name: macOS DMG (amd64)
+    runs-on: macos-13
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache macOS sysroot
+        id: cache-sysroot
+        uses: actions/cache@v4
+        with:
+          path: /tmp/macos-sysroot
+          key: macos-amd64-sysroot-${{ hashFiles('packaging/setup_macos_sysroot.sh') }}
+
+      - name: Set up macOS sysroot
+        if: steps.cache-sysroot.outputs.cache-hit != 'true'
+        run: bash packaging/setup_macos_sysroot.sh
+
+      - name: Build macOS DMG
+        run: VERSION="0~git.$(git rev-parse --short HEAD)" bash packaging/build_macos-amd64.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soulfu-macos-amd64
+          path: packaging/bin/*.dmg
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Windows 64-bit
   # ──────────────────────────────────────────────────────────────────────────
   windows-win64:
@@ -227,7 +260,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   publish-latest:
     name: Publish latest pre-release
-    needs: [debian-amd64, debian-arm64, linux-amd64, windows-win64]
+    needs: [debian-amd64, debian-arm64, linux-amd64, macos-amd64, windows-win64]
     if: always()
     runs-on: ubuntu-latest
     permissions:

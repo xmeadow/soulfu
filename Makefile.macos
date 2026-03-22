@@ -1,0 +1,26 @@
+.PHONY: all debug release
+
+CC = cc
+TARGET = soulfu
+SRC = source/soulfu.c
+DEP = $(wildcard source/*.c source/*.h)
+SYSROOT = /tmp/macos-sysroot
+LDLIBS = -L$(SYSROOT)/lib -F$(SYSROOT)/Frameworks \
+	-framework SDL2 -framework SDL2_net -framework OpenGL \
+	-ljpeg -lvorbis -logg -lm
+FLAGS = -I$(SYSROOT)/include \
+	-F$(SYSROOT)/Frameworks \
+	-I$(SYSROOT)/Frameworks/SDL2.framework/Headers \
+	-I$(SYSROOT)/Frameworks/SDL2_net.framework/Headers
+
+debug: all
+debug: FLAGS += -g -DDEVTOOL
+
+release: all
+
+all: $(TARGET) data
+
+$(TARGET): $(DEP)
+	$(CC) $(FLAGS) -o $@ -Isource $(SRC) $(LDLIBS) -Wl,-rpath,@executable_path/Frameworks
+
+include common.mk
