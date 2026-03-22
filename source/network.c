@@ -254,6 +254,22 @@ unsigned short network_script_mount_index;          // high-data only
 }
 
 //-----------------------------------------------------------------------------------------------
+// Raw IP add/read macros - write/read IPs as raw 4 bytes (network byte order)
+// Use these instead of packet_add/read_unsigned_int for IP addresses,
+// because the server uses raw memcpy (pkt_add_ip/pkt_read_ip)
+#define packet_add_ip(ip_var)                                               \
+{                                                                           \
+    memcpy(&packet_buffer[packet_length], &(ip_var), 4);                    \
+    packet_length += 4;                                                     \
+}
+
+#define packet_read_ip(ip_var)                                              \
+{                                                                           \
+    memcpy(&(ip_var), &packet_buffer[packet_readpos], 4);                   \
+    packet_readpos += 4;                                                    \
+}
+
+//-----------------------------------------------------------------------------------------------
 #define packet_read_string(string)                                          \
 {                                                                           \
     packet_counter = 0;                                                     \
@@ -1026,12 +1042,12 @@ void network_listen(void)
                     {
                         // shard_valid_flags(uint), my_ip(uint), then per valid shard: map_server_ip(uint)
                         packet_read_unsigned_int(shard_valid_flags);
-                        packet_read_unsigned_int(my_public_ip);
+                        packet_read_ip(my_public_ip);
                         for(i = 0; i < MAX_SHARDS; i++)
                         {
                             if(shard_valid_flags & (1u << i))
                             {
-                                packet_read_unsigned_int(shard_ip[i]);
+                                packet_read_ip(shard_ip[i]);
                             }
                             else
                             {
@@ -1062,7 +1078,7 @@ void network_listen(void)
                         packet_read_unsigned_char(direction);
                         packet_read_unsigned_char(letter);
                         packet_read_unsigned_char(pw_ok);
-                        packet_read_unsigned_int(joiner_ip);
+                        packet_read_ip(joiner_ip);
 
                         // Check if this COMMAND_JOIN is about ourselves
                         // When the server sends our own COMMAND_JOIN back, joiner_ip is our PUBLIC IP
@@ -1133,7 +1149,7 @@ void network_listen(void)
                                 packet_add_unsigned_char(direction);
                                 packet_add_unsigned_char(letter);
                                 packet_add_unsigned_char(pw_ok);
-                                packet_add_unsigned_int(joiner_ip);
+                                packet_add_ip(joiner_ip);
                                 packet_add_unsigned_int(game_seed);
                             packet_end_plain();
                             {
@@ -1157,7 +1173,7 @@ void network_listen(void)
                                 packet_add_unsigned_char(direction);
                                 packet_add_unsigned_char(letter);
                                 packet_add_unsigned_char(pw_ok);
-                                packet_add_unsigned_int(joiner_ip);
+                                packet_add_ip(joiner_ip);
                             packet_end_plain();
                             network_server_send();
                         }
@@ -1208,7 +1224,7 @@ void network_listen(void)
                             packet_read_unsigned_char(ry);
                             packet_read_unsigned_char(rz);
                             packet_read_unsigned_char(pw);
-                            packet_read_unsigned_int(machine_ip);
+                            packet_read_ip(machine_ip);
                             if(machine_ip != 0 && machine_ip != local_address.host && machine_ip != my_public_ip)
                             {
                                 network_add_remote_ip(machine_ip);
@@ -1222,7 +1238,7 @@ void network_listen(void)
                         packet_read_unsigned_char(continent);
                         packet_read_unsigned_char(direction);
                         packet_read_unsigned_char(letter);
-                        packet_read_unsigned_int(down_ip);
+                        packet_read_ip(down_ip);
                         log_message("INFO:     Machine down: %d.%d.%d.%d",
                             ((unsigned char*)&down_ip)[0], ((unsigned char*)&down_ip)[1],
                             ((unsigned char*)&down_ip)[2], ((unsigned char*)&down_ip)[3]);
@@ -1286,7 +1302,7 @@ void network_listen(void)
                                     packet_add_unsigned_char(punch_pw_ok);
                                     {
                                         unsigned int self_ip = local_address.host;
-                                        packet_add_unsigned_int(self_ip);
+                                        packet_add_ip(self_ip);
                                     }
                                     packet_add_unsigned_int(game_seed);
                                 packet_end_plain();
@@ -1379,7 +1395,7 @@ void network_listen(void)
                                             packet_read_unsigned_char(r_direction);
                                             packet_read_unsigned_char(r_letter);
                                             packet_read_unsigned_char(r_pw_ok);
-                                            packet_read_unsigned_int(r_joiner_ip);
+                                            packet_read_ip(r_joiner_ip);
                                             if(join_state >= 1 && r_pw_ok == PASSWORD_OKAY_VALUE)
                                             {
                                                 if(packet_readpos + 4 <= packet_length)
@@ -1437,7 +1453,7 @@ void network_listen(void)
                                     // Send our own IP so joiner knows who we are
                                     {
                                         unsigned int self_ip = local_address.host;
-                                        packet_add_unsigned_int(self_ip);
+                                        packet_add_ip(self_ip);
                                     }
                                     packet_add_unsigned_int(game_seed);
                                 packet_end_plain();
@@ -1459,7 +1475,7 @@ void network_listen(void)
                                     packet_add_unsigned_char(punch_pw_ok);
                                     {
                                         unsigned int peer_ip = udp_packet.address.host;
-                                        packet_add_unsigned_int(peer_ip);
+                                        packet_add_ip(peer_ip);
                                     }
                                 packet_end_plain();
                                 network_server_send();
@@ -1594,6 +1610,26 @@ void network_listen(void)
                                     if(*((unsigned int*)(character_data+252)) == udp_packet.address.host)
                                     {
                                         character_data[82] = 0;  // Give 'em 0 hits...
+                                    }
+                                }
+                            }
+
+                            // If we're the joiner, kill locally-spawned non-player entities
+                            // so the host's authoritative copies replace them
+                            if(!lan_hosting && main_game_active)
+                            {
+                                repeat(i, MAX_CHARACTER)
+                                {
+                                    if(main_character_on[i])
+                                    {
+                                        character_data = main_character_data[i];
+                                        // Locally hosted (IP==0), has netlist entry, NOT a player character
+                                        if(*((unsigned int*)(character_data+252)) == 0 &&
+                                           character_data[251] != 0 &&
+                                           !(*((unsigned short*)(character_data+60)) & CHAR_FULL_NETWORK))
+                                        {
+                                            main_character_on[i] = FALSE;
+                                        }
                                     }
                                 }
                             }
@@ -1978,9 +2014,8 @@ void network_send_room_update()
                 // Only need to send characters that are hosted locally...
                 if(main_character_data[i][252] == 0 && main_character_data[i][253] == 0 && main_character_data[i][254] == 0 && main_character_data[i][255] == 0)
                 {
-                    // Only send player characters (CHAR_FULL_NETWORK), not room entities
-                    // Room entities (monsters, crates, etc.) are generated identically on all machines from shared seed
-                    if(main_character_data[i][251] && (*((unsigned short*)(main_character_data[i]+60)) & 4096))
+                    // Send all characters with a valid netlist index
+                    if(main_character_data[i][251])
                     {
                         // Looks like we've got one to send...
                         local_character_count++;
@@ -2017,7 +2052,7 @@ void network_send_room_update()
                 {
                     if(main_character_data[i][252] == 0 && main_character_data[i][253] == 0 && main_character_data[i][254] == 0 && main_character_data[i][255] == 0)
                     {
-                        if(main_character_data[i][251] && (*((unsigned short*)(main_character_data[i]+60)) & 4096))
+                        if(main_character_data[i][251])
                         {
                             // This character is hosted on the local machine, so let's send it on over...
                             character_data = main_character_data[i];
@@ -2506,7 +2541,7 @@ void network_report_machine_down_server(unsigned int down_ip)
         packet_add_unsigned_char(0);    // continent
         packet_add_unsigned_char(0);    // direction
         packet_add_unsigned_char(0);    // letter
-        packet_add_unsigned_int(down_ip);
+        packet_add_ip(down_ip);
     packet_end_plain();
     network_server_send();
 }
@@ -2521,7 +2556,7 @@ void network_leave_server(unsigned short minutes_played)
         packet_add_unsigned_char(0);    // continent
         packet_add_unsigned_char(0);    // direction
         packet_add_unsigned_char(0);    // letter
-        packet_add_unsigned_int(0);     // ip=0.0.0.0 means self-report
+        { unsigned int zero_ip = 0; packet_add_ip(zero_ip); }     // ip=0.0.0.0 means self-report
         packet_add_unsigned_short(minutes_played);
     packet_end_plain();
     network_server_send();
