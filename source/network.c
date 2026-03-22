@@ -1067,11 +1067,15 @@ void network_listen(void)
                         // Check if this COMMAND_JOIN is about ourselves
                         // When the server sends our own COMMAND_JOIN back, joiner_ip is our PUBLIC IP
                         // which may differ from local_address.host (LAN IP)
+                        // After hole punch: joiner has join_state==2, num_remote>0, and receives
+                        // COMMAND_JOIN from the host directly (not from server)
                         if(joiner_ip == local_address.host || joiner_ip == my_public_ip ||
-                           (udp_packet.address.host == main_server_address.host && join_state >= 1 && !lan_hosting && num_remote == 0))
+                           (udp_packet.address.host == main_server_address.host && join_state >= 1 && !lan_hosting && num_remote == 0) ||
+                           (join_state == 2 && !lan_hosting && num_remote > 0))
                         {
                             // Learn our public IP from the server
-                            if(my_public_ip == 0 && joiner_ip != local_address.host)
+                            if(my_public_ip == 0 && joiner_ip != local_address.host &&
+                               udp_packet.address.host == main_server_address.host)
                             {
                                 my_public_ip = joiner_ip;
                                 log_message("INFO:     Learned our public IP: %d.%d.%d.%d",
@@ -1087,12 +1091,22 @@ void network_listen(void)
                                     packet_read_unsigned_int(game_seed);
                                     log_message("INFO:     Got game seed: %u", game_seed);
                                 }
-                                // Send REPLY_ROGER back to server
-                                packet_begin(PACKET_TYPE_REPLY_ROGER);
-                                packet_end_plain();
-                                network_server_send();
-                                join_state = 2;
-                                log_message("INFO:     Join accepted, sent roger");
+                                // If this came from a peer directly (hole punch), go straight to connected
+                                if(udp_packet.address.host != main_server_address.host && num_remote > 0)
+                                {
+                                    main_game_active = TRUE;
+                                    join_state = 4;
+                                    log_message("INFO:     Join accepted via hole punch (direct COMMAND_JOIN)");
+                                }
+                                else
+                                {
+                                    // Send REPLY_ROGER back to server
+                                    packet_begin(PACKET_TYPE_REPLY_ROGER);
+                                    packet_end_plain();
+                                    network_server_send();
+                                    join_state = 2;
+                                    log_message("INFO:     Join accepted, sent roger");
+                                }
                             }
                         }
                         // If the packet came from the master server and we're hosting,
