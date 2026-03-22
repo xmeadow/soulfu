@@ -2245,23 +2245,6 @@ int Event()
         self.action = ACTION_JUMP
         self.daction = ACTION_JUMP
     if(netaction != ACTION_STAND && netaction != ACTION_WALK)
-      if(netaction >= ACTION_BASH_LEFT && netaction <= ACTION_SLASH_RIGHT)
-        if(self.action != netaction)
-          self.action = netaction
-        self.daction = ACTION_STAND
-      if(netaction >= ACTION_BLOCK_BEGIN && netaction <= ACTION_BLOCK)
-        if(self.action != ACTION_BLOCK)
-          self.action = ACTION_BLOCK
-        self.daction = ACTION_STAND
-      if(netaction >= ACTION_STUN_BEGIN && netaction <= ACTION_STUN)
-        if(self.action != ACTION_STUN)
-          self.action = ACTION_STUN
-        self.daction = ACTION_STAND
-        self.evtimer = 20
-      if(netaction >= ACTION_KNOCK_OUT_BEGIN && netaction <= ACTION_KNOCK_OUT_STUN)
-        if(self.action != ACTION_KNOCK_OUT)
-          self.action = ACTION_KNOCK_OUT
-        self.daction = ACTION_KNOCK_OUT
       if(netaction >= ACTION_JUMP_BEGIN && netaction <= ACTION_JUMP)
         if(self.action != ACTION_JUMP)
           self.vz = 0.65
@@ -2276,6 +2259,22 @@ int Event()
         self.daction = ACTION_DOUBLE
         self.flags = self.flags | CHAR_FALL_ON
         self.flags = self.flags & (65535-CHAR_ON_PLATFORM)
+      if(netaction >= ACTION_KNOCK_OUT_BEGIN && netaction <= ACTION_KNOCK_OUT_STUN)
+        if(self.action != ACTION_KNOCK_OUT)
+          self.action = ACTION_KNOCK_OUT
+        self.daction = ACTION_KNOCK_OUT
+      if(netaction >= ACTION_STUN_BEGIN && netaction <= ACTION_STUN)
+        if(self.action != ACTION_STUN)
+          self.action = ACTION_STUN
+        self.daction = ACTION_STAND
+        self.evtimer = 20
+      if(netaction < ACTION_JUMP_BEGIN || netaction > ACTION_JUMP)
+        if(netaction < ACTION_DOUBLE_BEGIN || netaction > ACTION_DOUBLE)
+          if(netaction < ACTION_KNOCK_OUT_BEGIN || netaction > ACTION_KNOCK_OUT_STUN)
+            if(netaction < ACTION_STUN_BEGIN || netaction > ACTION_STUN)
+              if(self.action != netaction)
+                self.action = netaction
+              self.daction = ACTION_STAND
 
 
 
