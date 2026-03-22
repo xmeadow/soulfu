@@ -24,17 +24,16 @@ SYSROOT="/tmp/macos-sysroot"
 APP="SoulFu.app"
 DMG_NAME="packaging/bin/${PACKAGE_NAME}_${VERSION}_macos-${ARCHITECTURE}.dmg"
 
-# Compile — pick sysroot or pkg-config mode
+# Compile (Makefile.macos auto-detects sysroot vs pkg-config)
 rm -f soulfu
 if [ -d "$SYSROOT/Frameworks/SDL2.framework" ]; then
     echo "Using sysroot at $SYSROOT"
     USE_SYSROOT=1
-    make -f Makefile.macos release
 else
     echo "Using system libraries (pkg-config)"
     USE_SYSROOT=0
-    make release
 fi
+make -f Makefile.macos release
 
 # Check if required files exist
 if [ ! -f "soulfu" ] || [ ! -f "datafile.sdf" ]; then
