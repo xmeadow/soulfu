@@ -70,6 +70,7 @@ tar -xzf "$BUILDDIR/sdl2.tar.gz" -C "$BUILDDIR"
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DSDL_SHARED=ON -DSDL_STATIC=ON \
         -DSDL_FRAMEWORK=OFF \
+        -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF \
         > /dev/null
     make -j"$(nproc)" --quiet
     make install --quiet
