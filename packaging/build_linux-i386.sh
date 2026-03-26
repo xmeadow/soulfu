@@ -16,7 +16,7 @@ STAGING_DIR="${PACKAGE_NAME}-${VERSION}-linux-${ARCHITECTURE}"
 
 # Compile with release flag
 rm -f soulfu
-CFLAGS="-m32" LDFLAGS="-m32" PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig/ make release
+CC="cc -m32" PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig/ make release
 
 # Check if required files exist
 if [ ! -f "soulfu" ] || [ ! -f "datafile.sdf" ]; then
