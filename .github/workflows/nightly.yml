@@ -160,65 +160,47 @@ jobs:
           path: packaging/bin/*.dmg
 
   # ──────────────────────────────────────────────────────────────────────────
-  # macOS AMD64 (cross-compile from Linux)
+  # Linux i386 (tar.gz)
   # ──────────────────────────────────────────────────────────────────────────
-  macos-amd64:
-    name: macOS package (amd64)
+  linux-i386:
+    name: Linux tar.gz (i386)
     runs-on: ubuntu-latest
+    container: debian:bookworm
     continue-on-error: true
 
     steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y git
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install build dependencies
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Enable i386 architecture and install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang cmake libxml2-dev libssl-dev liblzma-dev \
-            wget autoconf libtool make patch python3 \
-            icnsutils zip
+          dpkg --add-architecture i386
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            gcc-multilib \
+            libsdl2-dev:i386 \
+            libsdl2-net-dev:i386 \
+            libogg-dev:i386 \
+            libvorbis-dev:i386 \
+            libjpeg62-turbo-dev:i386 \
+            libgl-dev:i386
 
-      - name: Cache osxcross toolchain
-        id: cache-osxcross
-        uses: actions/cache@v4
-        with:
-          path: /opt/osxcross
-          key: osxcross-macosx11.3-v1
-
-      - name: Build osxcross
-        if: steps.cache-osxcross.outputs.cache-hit != 'true'
-        run: |
-          git clone https://github.com/tpoechtrager/osxcross /tmp/osxcross-build
-          cd /tmp/osxcross-build
-          wget -q -O tarballs/MacOSX11.3.sdk.tar.xz \
-            "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX11.3.sdk.tar.xz"
-          UNATTENDED=1 ./build.sh
-          sudo mkdir -p /opt/osxcross
-          sudo cp -r target/* /opt/osxcross/
-
-      - name: Cache macOS amd64 sysroot
-        id: cache-sysroot
-        uses: actions/cache@v4
-        with:
-          path: /tmp/macos-amd64-sysroot
-          key: macos-amd64-sysroot-${{ hashFiles('packaging/setup_macos_amd64_sysroot.sh') }}
-
-      - name: Set up macOS amd64 sysroot
-        if: steps.cache-sysroot.outputs.cache-hit != 'true'
-        run: OSXCROSS=/opt/osxcross bash packaging/setup_macos_amd64_sysroot.sh
-
-      - name: Build macOS package
-        run: OSXCROSS=/opt/osxcross VERSION="0~git.$(git rev-parse --short HEAD)" bash packaging/build_macos-amd64.sh
+      - name: Build Linux tar.gz
+        run: VERSION="0~git.$(git rev-parse --short HEAD)" bash packaging/build_linux-i386.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: soulfu-macos-amd64
-          path: |
-            packaging/bin/*.dmg
-            packaging/bin/*.zip
+          name: soulfu-linux-i386
+          path: packaging/bin/*.tar.gz
 
   # ──────────────────────────────────────────────────────────────────────────
   # Windows 64-bit
@@ -314,7 +296,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   publish-latest:
     name: Publish latest pre-release
-    needs: [debian-amd64, debian-arm64, linux-amd64, macos-arm64, macos-amd64, windows-win64]
+    needs: [debian-amd64, debian-arm64, linux-amd64, linux-i386, macos-arm64, windows-win64]
     if: always()
     runs-on: ubuntu-latest
     permissions:
