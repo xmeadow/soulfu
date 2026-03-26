@@ -30,15 +30,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /opt/osxcross
-          key: osxcross-macosx14.0-v1
+          key: osxcross-macosx11.3-v1
 
       - name: Build osxcross
         if: steps.cache-osxcross.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/tpoechtrager/osxcross /tmp/osxcross-build
           cd /tmp/osxcross-build
-          wget -q -O tarballs/MacOSX14.0.sdk.tar.xz \
-            "https://github.com/joseluisq/macos-sdk/releases/download/14.0/MacOSX14.0.sdk.tar.xz"
+          wget -q -O tarballs/MacOSX11.3.sdk.tar.xz \
+            "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX11.3.sdk.tar.xz"
           UNATTENDED=1 ./build.sh
           sudo mkdir -p /opt/osxcross
           sudo cp -r target/* /opt/osxcross/
