@@ -68,7 +68,7 @@ tar -xzf "$BUILDDIR/sdl2.tar.gz" -C "$BUILDDIR"
         -DCMAKE_CXX_COMPILER="$CROSS_CXX" \
         -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
         -DCMAKE_INSTALL_LIBDIR=lib \
-        -DSDL_SHARED=ON -DSDL_STATIC=ON \
+        -DSDL_SHARED=OFF -DSDL_STATIC=ON \
         -DSDL_FRAMEWORK=OFF \
         -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF \
         > /dev/null
@@ -87,6 +87,7 @@ tar -xzf "$BUILDDIR/sdl2_net.tar.gz" -C "$BUILDDIR"
     cd "$BUILDDIR/SDL2_net-$SDL2_NET_VERSION"
     ./configure --host="$HOST" --prefix="$SYSROOT" \
         --with-sdl-prefix="$SYSROOT" \
+        --disable-shared --enable-static \
         CC="$CROSS_CC" AR="$CROSS_AR" RANLIB="$CROSS_RANLIB" \
         CFLAGS="-I$SYSROOT/include/SDL2 -I$SYSROOT/include" \
         LDFLAGS="-L$SYSROOT/lib" \
@@ -105,6 +106,7 @@ tar -xf "$BUILDDIR/libogg.tar.xz" -C "$BUILDDIR"
 (
     cd "$BUILDDIR/libogg-$LIBOGG_VERSION"
     ./configure --host="$HOST" --prefix="$SYSROOT" \
+        --disable-shared --enable-static \
         CC="$CROSS_CC" AR="$CROSS_AR" RANLIB="$CROSS_RANLIB" \
         --quiet
     make -j"$(nproc)" --quiet
@@ -122,6 +124,7 @@ tar -xf "$BUILDDIR/libvorbis.tar.xz" -C "$BUILDDIR"
     cd "$BUILDDIR/libvorbis-$LIBVORBIS_VERSION"
     CFLAGS="-I$SYSROOT/include" LDFLAGS="-L$SYSROOT/lib" \
     ./configure --host="$HOST" --prefix="$SYSROOT" \
+        --disable-shared --enable-static \
         CC="$CROSS_CC" AR="$CROSS_AR" RANLIB="$CROSS_RANLIB" \
         --with-ogg="$SYSROOT" --quiet
     make -j"$(nproc)" --quiet
@@ -144,7 +147,7 @@ tar -xzf "$BUILDDIR/libjpeg-turbo.tar.gz" -C "$BUILDDIR"
         -DCMAKE_C_COMPILER="$CROSS_CC" \
         -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
         -DCMAKE_INSTALL_LIBDIR=lib \
-        -DENABLE_SHARED=ON -DENABLE_STATIC=ON \
+        -DENABLE_SHARED=OFF -DENABLE_STATIC=ON \
         -DWITH_TURBOJPEG=OFF \
         -DWITH_SIMD=OFF \
         > /dev/null

@@ -15,7 +15,11 @@ DEP = $(wildcard source/*.c source/*.h)
 LDLIBS = -L$(SYSROOT)/lib \
 	-lSDL2 -lSDL2_net \
 	-ljpeg -lvorbis -logg -lm \
-	-framework OpenGL
+	-framework OpenGL -framework CoreAudio -framework AudioToolbox \
+	-framework CoreFoundation -framework CoreVideo -framework IOKit \
+	-framework Carbon -framework AppKit -framework CoreGraphics \
+	-framework Metal -framework ForceFeedback \
+	-liconv
 
 FLAGS = -I$(SYSROOT)/include -I$(SYSROOT)/include/SDL2 \
 	-target x86_64-apple-darwin

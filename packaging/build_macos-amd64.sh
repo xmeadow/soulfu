@@ -129,27 +129,8 @@ if [ "$NATIVE" -eq 1 ]; then
         fi
     done
 else
-    # Cross-compile: all libs in sysroot
-    for lib in libSDL2.dylib libSDL2_net.dylib libogg.0.dylib libvorbis.0.dylib libjpeg.62.dylib; do
-        src="$CROSS_SYSROOT/lib/$lib"
-        if [ -f "$src" ]; then
-            cp "$src" "$APP/Contents/Frameworks/"
-            old_id="$(_otool -D "$src" | tail -1)"
-            fix_dylib "$old_id" "$lib"
-            fix_dylib "$CROSS_SYSROOT/lib/$lib" "$lib"
-            fix_dylib "@rpath/$lib" "$lib"
-            _install_name_tool -id "@executable_path/../Frameworks/$lib" "$APP/Contents/Frameworks/$lib" 2>/dev/null || true
-        fi
-    done
-
-    # Fix libSDL2_net -> libSDL2 dependency
-    SDL2NET_LIB="$APP/Contents/Frameworks/libSDL2_net.dylib"
-    if [ -f "$SDL2NET_LIB" ]; then
-        sdl_ref="$(_otool -L "$SDL2NET_LIB" | grep libSDL2 | grep -v SDL2_net | awk '{print $1}')"
-        if [ -n "$sdl_ref" ]; then
-            _install_name_tool -change "$sdl_ref" "@executable_path/../Frameworks/libSDL2.dylib" "$SDL2NET_LIB"
-        fi
-    fi
+    # Cross-compile: everything is statically linked, no dylibs to bundle
+    echo "All libraries statically linked — no Frameworks to bundle"
 fi
 
 # Fix libvorbis -> libogg internal dependency
