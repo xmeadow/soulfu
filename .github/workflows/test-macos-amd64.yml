@@ -1,0 +1,30 @@
+name: Test macOS AMD64
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version string'
+        required: true
+        default: '0.0.0-test'
+
+jobs:
+  macos-amd64:
+    name: macOS DMG (amd64)
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: brew install sdl2 sdl2_net libogg libvorbis jpeg-turbo pkg-config
+
+      - name: Build macOS DMG
+        run: VERSION=${{ github.event.inputs.version }} bash packaging/build_macos-amd64.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soulfu-macos-amd64-test
+          path: packaging/bin/*.dmg

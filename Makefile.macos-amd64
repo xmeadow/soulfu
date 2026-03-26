@@ -1,0 +1,36 @@
+# Cross-compilation Makefile for macOS amd64 using osxcross
+# Requires: osxcross installed, run setup_macos_amd64_sysroot.sh first
+#
+# Usage: make -f Makefile.macos-amd64 release
+
+SYSROOT = /tmp/macos-amd64-sysroot
+
+# Auto-detect osxcross compiler
+CC := $(shell ls $(OSXCROSS)/bin/x86_64-apple-darwin*-clang 2>/dev/null | head -1)
+
+TARGET = soulfu
+SRC = source/soulfu.c
+DEP = $(wildcard source/*.c source/*.h)
+
+LDLIBS = -L$(SYSROOT)/lib \
+	-lSDL2 -lSDL2_net \
+	-ljpeg -lvorbis -logg -lm \
+	-framework OpenGL
+
+FLAGS = -I$(SYSROOT)/include -I$(SYSROOT)/include/SDL2 \
+	-target x86_64-apple-darwin
+
+debug: all
+debug: FLAGS += -g -DDEVTOOL
+.PHONY: debug
+
+release: all
+.PHONY: release
+
+all: $(TARGET) data
+.PHONY: all
+
+$(TARGET): $(DEP)
+	$(CC) $(FLAGS) -o $@ -Isource $(SRC) $(LDLIBS) -Wl,-rpath,@executable_path/../Frameworks
+
+include common.mk
