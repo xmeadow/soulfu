@@ -37,7 +37,7 @@ Spawn()
   netmap_mode = MODE_LAN
   lan_selected = -1
   lan_scroll = 0
-  delay = 120
+  delay = 300
   timer = 0
   SystemSet(SYS_LANQUERY, 0, 0, 0)
 
@@ -330,7 +330,7 @@ Refresh()
       else
         delay = 0
         SystemSet(SYS_LANQUERY, 0, 0, 0)
-        delay = 120
+        delay = 300
 
     // Show LAN game list
     WindowString(WHITE, 0.0, 0.5, "LAN Games:")
