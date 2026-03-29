@@ -283,6 +283,7 @@ const char ff_map[MAX_FAST_FUNCTION][32] = {
 #define SYS_SAVE                    227
 #define SYS_LOAD                    228
 #define SYS_SCREENPARAMS            229
+#define SYS_TOUCHCONTROLS           230
 #define SYS_MODELCHECKHACK          255
 
 
@@ -1483,10 +1484,15 @@ signed char run_script(unsigned char* address, unsigned char* file_start, unsign
                                     }
                                 }
 
-                                // Also check if joystick exists...
-                                if((m-1) > num_joystick)
+                                // Also check if joystick exists (skip check for touch device)...
+                                if(m != PLAYER_DEVICE_TOUCH && (m-1) > num_joystick)
                                 {
                                     // Trying to use an unconnected joystick...
+                                    opcode = FALSE;
+                                }
+                                // Touch device requires touch_controls_active
+                                if(m == PLAYER_DEVICE_TOUCH && !touch_controls_active)
+                                {
                                     opcode = FALSE;
                                 }
                             }
@@ -2381,6 +2387,26 @@ log_message("ERROR:  SYS_PLAYERCONTROLHANDLED Called...");
                     case SYS_FASTANDUGLY:
                         // Turns on/off bilinear filtering and stuff...
                         fast_and_ugly_active = (unsigned char) m;
+                        break;
+                    case SYS_TOUCHCONTROLS:
+                        // Turns on/off touch controls overlay and input...
+                        touch_controls_active = (unsigned char) m;
+                        if(touch_controls_active)
+                        {
+                            // Auto-assign player 0 to touch if no device set
+                            if(player_device_type[0] == PLAYER_DEVICE_NONE || player_device_type[0] == PLAYER_DEVICE_KEYBOARD)
+                            {
+                                player_device_type[0] = PLAYER_DEVICE_TOUCH;
+                            }
+                        }
+                        else
+                        {
+                            // Revert to keyboard if currently using touch
+                            if(player_device_type[0] == PLAYER_DEVICE_TOUCH)
+                            {
+                                player_device_type[0] = PLAYER_DEVICE_KEYBOARD;
+                            }
+                        }
                         break;
                     case SYS_DEFENSERATING:
                         // Accumulates a global defense rating in one of several damage type categories...
@@ -4641,6 +4667,9 @@ log_message("ERROR:  Membuffer MAPBUFFER requested...");
                             case 5: i = (int)(virtual_y * 256.0); break;
                             default: i = FALSE;
                         }
+                        break;
+                    case SYS_TOUCHCONTROLS:
+                        i = touch_controls_active;
                         break;
                     default:
                         i = TRUE;

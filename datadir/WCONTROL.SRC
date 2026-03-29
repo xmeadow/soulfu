@@ -30,7 +30,7 @@ LoadBindings()
 
 
   // Load joystick buttons...
-  if((device>>8) > 1)
+  if((device>>8) > 1 && (device>>8) < 6)
     binding0 = FileReadByte(file, 18+offset)<<8
     binding1 = FileReadByte(file, 19+offset)<<8
     binding2 = FileReadByte(file, 20+offset)<<8
@@ -101,7 +101,7 @@ SaveBindings()
 
 
   // Save joystick buttons...
-  if((device>>8) > 1)
+  if((device>>8) > 1 && (device>>8) < 6)
     FileWriteByte(file, offset+18, binding0>>8)
     FileWriteByte(file, offset+19, binding1>>8)
     FileWriteByte(file, offset+20, binding2>>8)
@@ -154,7 +154,7 @@ Refresh()
 
 
   // Pick mode by device number...
-  if((device>>8)!=0)
+  if((device>>8)!=0 && (device>>8)!=6)
     // Mouse-Shop option...
     WindowString(WHITE, 0.0, 10.0, StringLanguage(243))
     mouse_shop = WindowYesBox(mouse_shop, 17.0, 10.0)
@@ -165,8 +165,13 @@ Refresh()
     WindowString(WHITE, 0.0, 3.0, StringLanguage(246))
     WindowString(WHITE, 0.0, 2.0, StringLanguage(43))
     WindowString(WHITE, 0.0, 1.0, StringLanguage(41))
-  if((device>>8)==0 || (device>>8)==1)
-    // No device or Keyboard...  Do hidden minilists to make
+  if((device>>8)==6)
+    // Touch device...  No bindings to configure...
+    WindowString(WHITE, 1.0, 5.0, "Touch controls active")
+    WindowString(WHITE, 1.0, 4.0, "Left side: Move")
+    WindowString(WHITE, 1.0, 3.0, "Right side: Buttons")
+  if((device>>8)==0 || (device>>8)==1 || (device>>8)==6)
+    // No device, Keyboard, or Touch...  Do hidden minilists to make
     // sure items don't get confused...
     WindowMiniList(0.0, 0.0, 0, 0, 0, NULL)
     WindowMiniList(0.0, 0.0, 0, 0, 0, NULL)
@@ -280,7 +285,7 @@ Refresh()
       i++
 
 
-    
+
 
   // Input selection
   joystick_count = SystemGet(SYS_NUMJOYSTICK, 0, 0)
@@ -288,13 +293,23 @@ Refresh()
     joystick_count = 4
   WindowString(WHITE, 0.0, 0.0, StringLanguage(39))
   old_device = device
-  device = WindowMiniList(9.0, 0.0, 9, joystick_count+2, device, StringLanguage(40))
+  device = WindowMiniList(9.0, 0.0, 9, 7, device, StringLanguage(40))
   i = device>>8  // The actual selection...
   if(i != (old_device >> 8))
+    // Handle touch controls toggle
+    if(i == 6)
+      SystemSet(SYS_TOUCHCONTROLS, 0, 0, TRUE)
+    else
+      SystemSet(SYS_TOUCHCONTROLS, 0, 0, FALSE)
     if(SystemSet(SYS_PLAYERDEVICE, player, PLAYER_DEVICE_TYPE, i)==FALSE)
       // Device switch failed (tried to use joystick twice...)
       device = (old_device>>8)<<8
       BuzzerSound()
+      // Restore touch state on failure
+      if((old_device>>8) == 6)
+        SystemSet(SYS_TOUCHCONTROLS, 0, 0, TRUE)
+      else
+        SystemSet(SYS_TOUCHCONTROLS, 0, 0, FALSE)
     else
       // Load settings from the config file...
       LoadBindings()
@@ -302,7 +317,7 @@ Refresh()
       // Just selected keyboard...
       mouse_shop = TRUE
     else
-      // Just selected joystick...
+      // Just selected joystick or touch...
       mouse_shop = FALSE
 
 

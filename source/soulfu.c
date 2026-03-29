@@ -438,6 +438,10 @@ if(map_room_data[map_current_room][13] & MAP_ROOM_FLAG_OUTSIDE) {
 
 
 
+    // Draw touch controls overlay...
+    display_touch_overlay();
+
+
     // Draw the cursor...
     display_pick_texture(texture_ascii);
     if(mouse_idle_timer > 1800 && mouse_alpha > 0)
@@ -451,7 +455,7 @@ if(map_room_data[map_current_room][13] & MAP_ROOM_FLAG_OUTSIDE) {
     }
     color_temp[0] = 255;  color_temp[1] = 255;  color_temp[2] = 255;  color_temp[3] = mouse_alpha;
     display_color_alpha(color_temp);
-    if(mouse_draw)
+    if(mouse_draw && !(touch_controls_active && play_game_active && !touch_mouse_active))
     {
       x = mouse_x;
       y = mouse_y;
@@ -916,6 +920,7 @@ int main(int argc, char *argv[])
     full_screen = *(config+72);
     mip_map_active = (*(config+98));
     fast_and_ugly_active = (*(config+101));
+    touch_controls_active = (*(config+102));
     log_message("INFO:   Config file read okay...");
 
     // Auto-detect resolution only for fresh/default config (screen_size 0 = 320x200)
@@ -1055,6 +1060,14 @@ int main(int argc, char *argv[])
   main_loop();
 
 
+  // Save touch controls setting back to config before export
+  config = sdf_find_filetype("CONFIG", SDF_FILE_IS_DAT);
+  if(config)
+  {
+    config = sdf_index_get_data(config);
+    *(config+102) = touch_controls_active;
+  }
+
   // Export the config file to disk, so we don't need to save the whole datafile
   sdf_export_file("CONFIG.DAT", configfile);
 
@@ -1152,6 +1165,18 @@ unsigned int time_since_i_got_heartbeat;// Frames since I got a heartbeat from s
 unsigned int time_since_i_sent_heartbeat;// Frames since I sent a heartbeat from somebody...
 unsigned char mip_map_active = FALSE;
 unsigned char fast_and_ugly_active = FALSE;
+unsigned char touch_controls_active = FALSE;
+unsigned char touch_active = FALSE;
+float touch_joystick_dx = 0.0f;
+float touch_joystick_dy = 0.0f;
+float touch_joystick_center_x = 60.0f;
+float touch_joystick_center_y = 240.0f;
+float touch_button_x[MAX_TOUCH_BUTTON];
+float touch_button_y[MAX_TOUCH_BUTTON];
+unsigned char touch_button_down[MAX_TOUCH_BUTTON];
+unsigned char touch_button_pressed[MAX_TOUCH_BUTTON];
+unsigned char touch_button_unpressed[MAX_TOUCH_BUTTON];
+unsigned char touch_mouse_active = FALSE;
 unsigned short screen_sizes_xy[MAX_SCREEN_SIZES][2] =
 {
   {320, 200},

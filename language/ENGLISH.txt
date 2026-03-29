@@ -37,7 +37,7 @@ Note:  You'll need to restart for
        some changes to work...
 Speed  :
 Device :
-None,Keyboard,Joystk 1,Joystk 2,Joystk 3,Joystk 4
+None,Keyboard,Joystk 1,Joystk 2,Joystk 3,Joystk 4,Touch
 Left   :
 Button 1,Button 2,Button 3,Button 4,Button 5,Button 6,Button 7,Button 8,Button 9,Button 10,Button 11,Button 12,Button 13,Button 14,Button 15,Button 16,None
 Right  :

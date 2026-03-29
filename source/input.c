@@ -26,6 +26,23 @@
 #define JOY_TOLERANCE 5000                      // Joystick must move so much before it activates...
 
 
+// Touch input support
+#define MAX_TOUCH_FINGERS 8
+#define TOUCH_JOYSTICK_DEADZONE 0.15f           // Deadzone as fraction of radius
+
+// Touch finger tracking
+struct touch_finger {
+    SDL_FingerID id;
+    unsigned char active;
+    float x, y;                                  // Position in virtual coords
+    unsigned char zone;                          // 0=none, 1=joystick, 2=button area, 3=menu/mouse
+};
+struct touch_finger touch_fingers[MAX_TOUCH_FINGERS];
+SDL_FingerID touch_joystick_finger = -1;         // Finger ID controlling joystick (-1 = none)
+float touch_joystick_origin_x, touch_joystick_origin_y;  // Where joystick finger first touched
+SDL_FingerID touch_mouse_finger = -1;
+
+
 #define MAX_KEY SDL_NUM_SCANCODES                       // The number of keys
 #define MAX_KEY_BUFFER 256                      // Must be 256
 #define MAX_ASCII 128                           // Must be 128
@@ -216,7 +233,22 @@ void input_update(void)
     {
         player_device_inventory_toggle[i] = FALSE;
         player_device_inventory_down[i] = FALSE;
-        if(player_device_type[i] > 1)
+        if(player_device_type[i] == PLAYER_DEVICE_TOUCH)
+        {
+            // Touch controls feed directly into player device
+            player_device_xy[i][X] = touch_joystick_dx;
+            player_device_xy[i][Y] = touch_joystick_dy;
+
+            // Map touch buttons to player device buttons
+            repeat(j, 4)
+            {
+                player_device_button_pressed[i][j] = touch_button_pressed[j];
+                player_device_button_unpressed[i][j] = touch_button_unpressed[j];
+            }
+            player_device_inventory_toggle[i] = touch_button_pressed[TOUCH_BTN_ITEMS];
+            player_device_inventory_down[i] = touch_button_down[TOUCH_BTN_ITEMS];
+        }
+        else if(player_device_type[i] > 1)
         {
             // Joystick controls...
             joystick = (player_device_type[i]-2) & (MAX_JOYSTICK-1);
@@ -394,6 +426,29 @@ void input_setup(void)
         player_device_controls_active[i] = TRUE;
         local_player_character[i] = MAX_CHARACTER;
     }
+
+
+    // Setup touch input
+    repeat(i, MAX_TOUCH_FINGERS)
+    {
+        touch_fingers[i].active = FALSE;
+        touch_fingers[i].id = -1;
+        touch_fingers[i].zone = 0;
+    }
+    touch_joystick_finger = -1;
+    touch_joystick_dx = 0.0f;
+    touch_joystick_dy = 0.0f;
+    touch_mouse_finger = -1;
+    touch_mouse_active = FALSE;
+    repeat(i, MAX_TOUCH_BUTTON)
+    {
+        touch_button_down[i] = FALSE;
+        touch_button_pressed[i] = FALSE;
+        touch_button_unpressed[i] = FALSE;
+    }
+    // Set default button positions (bottom-right area, will be updated by display code)
+    touch_joystick_center_x = 60.0f;
+    touch_joystick_center_y = 240.0f;
 }
 
 //-------------------------------------------------------------------------------------------
@@ -479,6 +534,14 @@ void input_read(void)
             joystick_button_pressed[i][j] = FALSE;
             joystick_button_unpressed[i][j] = FALSE;
         }
+    }
+
+
+    // Unpress all of the touch buttons...
+    repeat(i, MAX_TOUCH_BUTTON)
+    {
+        touch_button_pressed[i] = FALSE;
+        touch_button_unpressed[i] = FALSE;
     }
 
 
@@ -622,6 +685,199 @@ void input_read(void)
                             mouse_pressed[i] = TRUE;
                             mouse_down[i] = TRUE;
                         }
+                    }
+                }
+                break;
+            case SDL_FINGERDOWN:
+                if(touch_controls_active)
+                {
+                    float fx = event.tfinger.x * virtual_x;
+                    float fy = event.tfinger.y * virtual_y;
+                    touch_active = TRUE;
+
+                    // Find a free finger slot
+                    int slot = -1;
+                    repeat(j, MAX_TOUCH_FINGERS)
+                    {
+                        if(!touch_fingers[j].active) { slot = j; break; }
+                    }
+                    if(slot < 0) break;
+
+                    touch_fingers[slot].active = TRUE;
+                    touch_fingers[slot].id = event.tfinger.fingerId;
+                    touch_fingers[slot].x = fx;
+                    touch_fingers[slot].y = fy;
+                    touch_fingers[slot].zone = 0;
+
+                    if(play_game_active)
+                    {
+                        // Left side of screen = joystick zone
+                        if(fx < virtual_x * 0.4f && fy > virtual_y * 0.4f)
+                        {
+                            if(touch_joystick_finger == (SDL_FingerID)-1)
+                            {
+                                touch_joystick_finger = event.tfinger.fingerId;
+                                touch_joystick_origin_x = fx;
+                                touch_joystick_origin_y = fy;
+                                touch_joystick_dx = 0.0f;
+                                touch_joystick_dy = 0.0f;
+                                touch_fingers[slot].zone = 1;
+                            }
+                        }
+                        // Right side = button zone
+                        else if(fx > virtual_x * 0.6f && fy > virtual_y * 0.4f)
+                        {
+                            touch_fingers[slot].zone = 2;
+                            // Check which button was hit
+                            repeat(j, MAX_TOUCH_BUTTON)
+                            {
+                                float dx = fx - touch_button_x[j];
+                                float dy = fy - touch_button_y[j];
+                                if(dx*dx + dy*dy < TOUCH_BUTTON_RADIUS * TOUCH_BUTTON_RADIUS * 1.5f)
+                                {
+                                    if(!touch_button_down[j])
+                                    {
+                                        touch_button_pressed[j] = TRUE;
+                                    }
+                                    touch_button_down[j] = TRUE;
+                                    break;
+                                }
+                            }
+                        }
+                        // Middle/top area = mouse emulation for menus
+                        else
+                        {
+                            touch_fingers[slot].zone = 3;
+                            if(touch_mouse_finger == (SDL_FingerID)-1)
+                            {
+                                touch_mouse_finger = event.tfinger.fingerId;
+                                touch_mouse_active = TRUE;
+                                mouse_x = fx;
+                                mouse_y = fy;
+                                mouse_idle_timer = 0;
+                                if(mouse_draw && !mouse_down[BUTTON0])
+                                {
+                                    mouse_pressed[BUTTON0] = TRUE;
+                                    mouse_down[BUTTON0] = TRUE;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Not in gameplay - all touches act as mouse
+                        touch_fingers[slot].zone = 3;
+                        if(touch_mouse_finger == (SDL_FingerID)-1)
+                        {
+                            touch_mouse_finger = event.tfinger.fingerId;
+                            touch_mouse_active = TRUE;
+                            mouse_x = fx;
+                            mouse_y = fy;
+                            mouse_idle_timer = 0;
+                            if(mouse_draw && !mouse_down[BUTTON0])
+                            {
+                                mouse_pressed[BUTTON0] = TRUE;
+                                mouse_down[BUTTON0] = TRUE;
+                            }
+                        }
+                    }
+                }
+                break;
+            case SDL_FINGERUP:
+                if(touch_controls_active)
+                {
+                    // Find the finger
+                    if(event.tfinger.fingerId == touch_joystick_finger)
+                    {
+                        touch_joystick_finger = -1;
+                        touch_joystick_dx = 0.0f;
+                        touch_joystick_dy = 0.0f;
+                    }
+                    if(event.tfinger.fingerId == touch_mouse_finger)
+                    {
+                        touch_mouse_finger = -1;
+                        touch_mouse_active = FALSE;
+                        if(mouse_down[BUTTON0])
+                        {
+                            mouse_unpressed[BUTTON0] = TRUE;
+                            mouse_down[BUTTON0] = FALSE;
+                        }
+                    }
+                    // Release any buttons this finger was pressing
+                    repeat(j, MAX_TOUCH_FINGERS)
+                    {
+                        if(touch_fingers[j].active && touch_fingers[j].id == event.tfinger.fingerId)
+                        {
+                            if(touch_fingers[j].zone == 2)
+                            {
+                                // Check which button to release
+                                int bj;
+                                repeat(bj, MAX_TOUCH_BUTTON)
+                                {
+                                    float dx = touch_fingers[j].x - touch_button_x[bj];
+                                    float dy = touch_fingers[j].y - touch_button_y[bj];
+                                    if(dx*dx + dy*dy < TOUCH_BUTTON_RADIUS * TOUCH_BUTTON_RADIUS * 2.0f)
+                                    {
+                                        if(touch_button_down[bj])
+                                        {
+                                            touch_button_unpressed[bj] = TRUE;
+                                            touch_button_down[bj] = FALSE;
+                                        }
+                                    }
+                                }
+                            }
+                            touch_fingers[j].active = FALSE;
+                            touch_fingers[j].id = -1;
+                            touch_fingers[j].zone = 0;
+                            break;
+                        }
+                    }
+                }
+                break;
+            case SDL_FINGERMOTION:
+                if(touch_controls_active)
+                {
+                    float fx = event.tfinger.x * virtual_x;
+                    float fy = event.tfinger.y * virtual_y;
+
+                    // Update finger position
+                    repeat(j, MAX_TOUCH_FINGERS)
+                    {
+                        if(touch_fingers[j].active && touch_fingers[j].id == event.tfinger.fingerId)
+                        {
+                            touch_fingers[j].x = fx;
+                            touch_fingers[j].y = fy;
+                            break;
+                        }
+                    }
+
+                    if(event.tfinger.fingerId == touch_joystick_finger)
+                    {
+                        float dx = fx - touch_joystick_origin_x;
+                        float dy = fy - touch_joystick_origin_y;
+                        float dist = (float)sqrt(dx*dx + dy*dy);
+                        if(dist > TOUCH_JOYSTICK_RADIUS * TOUCH_JOYSTICK_DEADZONE)
+                        {
+                            if(dist > TOUCH_JOYSTICK_RADIUS)
+                            {
+                                dx = dx * TOUCH_JOYSTICK_RADIUS / dist;
+                                dy = dy * TOUCH_JOYSTICK_RADIUS / dist;
+                                dist = TOUCH_JOYSTICK_RADIUS;
+                            }
+                            touch_joystick_dx = dx / TOUCH_JOYSTICK_RADIUS;
+                            touch_joystick_dy = dy / TOUCH_JOYSTICK_RADIUS;
+                        }
+                        else
+                        {
+                            touch_joystick_dx = 0.0f;
+                            touch_joystick_dy = 0.0f;
+                        }
+                    }
+                    else if(event.tfinger.fingerId == touch_mouse_finger)
+                    {
+                        mouse_x = fx;
+                        mouse_y = fy;
+                        mouse_idle_timer = 0;
                     }
                 }
                 break;
