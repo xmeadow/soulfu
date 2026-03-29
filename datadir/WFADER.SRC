@@ -4,6 +4,8 @@
 #define escape_mode   self.stat02l
 #define button_one    self.stat02h
 #define button_two    self.stat03l
+#define join_accept   self.stat03h
+#define join_deny     self.stat04l
 
 #define KEYESCAPE  41
 
@@ -25,7 +27,7 @@ DrawBlack(int alpha)
 
 //-----------------------------------------------------------------------
 Refresh()
-  int    self, alpha, scaling, skip, curroom, roomflags, save_window
+  int    self, alpha, scaling, skip, curroom, roomflags, save_window, pending_ip
   float screenx, midx
 
   screenx = SystemGet(SYS_SCREENPARAMS, 0, 2)
@@ -145,7 +147,35 @@ Refresh()
       button_one = 0
       button_two = 0
 
-
+    // Join request popup (host only, mid-game)
+    pending_ip = SystemGet(SYS_PENDINGJOINIP, 0, 0)
+    if(!escape_mode && pending_ip != 0)
+      WindowBorder(FALSE, -11.0, -4.0, 22, 5, BORDER_FULL)
+      CenterString(YELLOW, 11.0, 0.5, "Player wants to join!")
+      StringClear(String(0))
+      StringAppendNumber(String(0), pending_ip & 255, 256)
+      StringAppend(String(0), ".", 256)
+      StringAppendNumber(String(0), (pending_ip / 256) & 255, 256)
+      StringAppend(String(0), ".", 256)
+      StringAppendNumber(String(0), (pending_ip / 65536) & 255, 256)
+      StringAppend(String(0), ".", 256)
+      StringAppendNumber(String(0), (pending_ip / 16777216) & 255, 256)
+      CenterString(WHITE, 11.0, 1.5, String(0))
+      join_accept = ButtonImage(join_accept, 0.0, 3.0, 11.0, 2.0, "Accept")
+      join_deny = ButtonImage(join_deny, 11.0, 3.0, 11.0, 2.0, "Deny")
+      if(join_accept == 250)
+        ButtonSound()
+        SystemSet(SYS_ACCEPTJOIN, 0, 0, 0)
+        join_accept = 0
+        join_deny = 0
+      if(join_deny == 250)
+        ButtonSound()
+        SystemSet(SYS_DENYJOIN, 0, 0, 0)
+        join_accept = 0
+        join_deny = 0
+    else
+      join_accept = 0
+      join_deny = 0
 
 
 //-----------------------------------------------------------------------

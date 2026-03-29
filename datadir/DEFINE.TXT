@@ -486,6 +486,13 @@
 #define SYS_REQUESTJOINSERVER       244
 #define SYS_SERVERPLAYERCOUNT       245
 #define SYS_REQUESTPLAYERCOUNT      246
+#define SYS_PENDINGJOINIP           247
+#define SYS_ACCEPTJOIN              248
+#define SYS_DENYJOIN                249
+#define SYS_REJOINCLASS             250
+#define SYS_REJOINREADY             251
+#define SYS_APPLYREJOINDATA         252
+#define SYS_REJOINROOM              253
 #define SYS_MODELCHECKHACK          255
 
 

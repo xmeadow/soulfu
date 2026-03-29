@@ -44,8 +44,8 @@ Spawn()
 
 //-----------------------------------------------------------------------
 Refresh()
-  int    i, self, num_games, num_players, ip_addr, length
-  float  screenx, xpos, xadd
+  int    i, self, num_games, num_players, ip_addr, length, child
+  float  screenx, xpos, xadd, ypos
 
   screenx = SystemGet(SYS_SCREENPARAMS, 0, 2)
   xadd = screenx / 2
@@ -67,6 +67,54 @@ Refresh()
       button_seven = 0
       button_eight = 0
       return 0
+    if(i == 7)
+      // Rejoin — auto-spawn character of old class and start game immediately
+      MAPGEN.Setup()
+      i = SystemGet(SYS_REJOINROOM, 0, 0)
+      MAPGEN.SetCurrentRoom(i)
+      i = SystemGet(SYS_REJOINCLASS, 0, 0)
+      SystemSet(SYS_GLOBALSPAWN, 0, GLOBAL_SPAWN_CLASS, i)
+      SystemSet(SYS_GLOBALSPAWN, 0, GLOBAL_SPAWN_TEAM, TEAM_GOOD)
+      child = Spawn(CHARACTER, 0.0, 0.0, 0.0, "FILE:CPLAYER.RUN")
+      if(child)
+        i = FindIndex(child)
+        SystemSet(SYS_CHARFASTFUNCTION, i, 0, FAST_FUNCTION_MODELSETUP)
+        // Apply old character data from host if available
+        if(SystemGet(SYS_REJOINREADY, 0, 0))
+          SystemSet(SYS_APPLYREJOINDATA, 0, 0, i)
+          SystemSet(SYS_CHARFASTFUNCTION, i, 0, FAST_FUNCTION_MODELSETUP)
+        SystemSet(SYS_LOCALPLAYER, 0, 0, i)
+      SystemSet(SYS_LOCALPLAYER, 1, 0, 65535)
+      SystemSet(SYS_LOCALPLAYER, 2, 0, 65535)
+      SystemSet(SYS_LOCALPLAYER, 3, 0, 65535)
+      GoPoof(POOF_ALL_OTHER_WINDOWS)
+      SystemSet(SYS_CAMERARESET, 0, 0, 0)
+      SystemSet(SYS_STARTGAME, 0, 0, 0)
+      SystemSet(SYS_MESSAGERESET, 0, 0, 0)
+      Spawn(WINDOW, xadd, 150.0, 1.0, "FILE:WMESSAGE.RUN")
+      ypos = 300.0 - (3.0 * ((SystemGet(SYS_WINDOWSCALE, 0, 0) / 600.0) + 6.0))
+      Spawn(WINDOW, xadd, ypos, 0, "FILE:WSTATUS.RUN")
+      // Don't poof the character — it already has the old state from rejoin data
+      SystemSet(SYS_CAMERARESET, 0, 0, 0)
+      SystemSet(SYS_CAMERASPIN, 0, 0, 32000)
+      Spawn(WINDOW, xadd, 150.0, 1.0, "FILE:WFADER.RUN")
+      ButtonSound()
+      GoPoof(POOF_SELF)
+      return 0
+    if(i == 6)
+      // Fresh mid-game join — skip lobby, go straight to character spawn
+      MAPGEN.Setup()
+      MAPGEN.SetCurrentRoom(0)
+      if(SystemGet(SYS_PLAYERDEVICE, 0, PLAYER_DEVICE_TYPE)!=PLAYER_DEVICE_NONE)
+        Spawn(WINDOW, xpos, 70.0, 0.0, "FILE:WSPAWN.RUN")
+      if(SystemGet(SYS_PLAYERDEVICE, 1, PLAYER_DEVICE_TYPE)!=PLAYER_DEVICE_NONE)
+        Spawn(WINDOW, xpos + xadd, 70.0, 1.0, "FILE:WSPAWN.RUN")
+      if(SystemGet(SYS_PLAYERDEVICE, 2, PLAYER_DEVICE_TYPE)!=PLAYER_DEVICE_NONE)
+        Spawn(WINDOW, xpos, 200.0, 2.0, "FILE:WSPAWN.RUN")
+      if(SystemGet(SYS_PLAYERDEVICE, 3, PLAYER_DEVICE_TYPE)!=PLAYER_DEVICE_NONE)
+        Spawn(WINDOW, xpos + xadd, 200.0, 3.0, "FILE:WSPAWN.RUN")
+      Spawn(WINDOW, xadd, 280.0, 1.0, "FILE:WLEAVE.RUN")
+      GoPoof(POOF_SELF)
     if(i == 4)
       netmap_mode = MODE_LOBBY
       button_one = 0

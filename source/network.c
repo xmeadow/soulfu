@@ -91,6 +91,36 @@ unsigned char   join_state = 0;         // 0=idle, 1=sent request, 2=got reply, 
 unsigned short  join_timer = 0;
 IPaddress       join_target_address;
 
+// Pending join approval (host-side, mid-game joins)
+unsigned int    pending_join_ip = 0;            // IP of player waiting for host approval (0 = none)
+unsigned char   pending_join_continent = 0;
+unsigned char   pending_join_direction = 0;
+unsigned char   pending_join_letter = 0;
+unsigned char   pending_join_pw_ok = 0;
+
+// Disconnected player tracking (for rejoin-as-old-character)
+#define MAX_DISCONNECTED 4
+unsigned int    disconnected_ip[MAX_DISCONNECTED];
+unsigned short  disconnected_char[MAX_DISCONNECTED];        // Character index (MAX_CHARACTER = no live character)
+unsigned char   disconnected_remote_index[MAX_DISCONNECTED]; // Byte 250: remote character index
+unsigned char   disconnected_class[MAX_DISCONNECTED];       // Byte 204: character class
+unsigned short  disconnected_room[MAX_DISCONNECTED];        // Room the player was last in
+unsigned char   disconnected_on[MAX_DISCONNECTED];
+unsigned char   num_disconnected = 0;
+unsigned char   rejoin_character_class = 0;          // Class of character being rejoined (sent to client)
+unsigned char   rejoin_character_data[CHARACTER_SIZE]; // Full character data for rejoin (from host)
+unsigned char   rejoin_character_ready = 0;          // TRUE when rejoin_character_data is filled
+unsigned short  rejoin_room_number = 0;              // Host's current room when sending rejoin data
+
+// Character sync: client sends full character data to host after spawning
+// Stored separately because ROOM_UPDATE mark-and-sweep overwrites main_character_data every frame
+#define HEARTBEAT_SUBTYPE_KEEPALIVE  0
+#define HEARTBEAT_SUBTYPE_CHARSYNC   1
+unsigned char   character_sync_pending = 0;           // Countdown frames until sync send (0=off)
+unsigned int    synced_player_ip[MAX_DISCONNECTED];
+unsigned char   synced_player_data[MAX_DISCONNECTED][CHARACTER_SIZE];
+unsigned char   synced_player_on[MAX_DISCONNECTED];
+
 // UDP hole punch state (for NAT traversal via master server)
 unsigned char   punch_active = FALSE;
 unsigned int    punch_timer = 0;
@@ -135,6 +165,7 @@ unsigned char   punch_continent, punch_direction, punch_letter, punch_pw_ok;
 #define PACKET_TYPE_PUNCH_ACK               32
 #define PACKET_TYPE_RELAY_REQUEST           33
 #define PACKET_TYPE_RELAY_DATA              34
+#define PACKET_TYPE_REJOIN_CHARACTER        35
 
 #define EXECUTABLE_VERSION_NUMBER   1
 #define DATA_VERSION_NUMBER         1
@@ -517,6 +548,9 @@ unsigned char network_add_remote_ip(unsigned int host_ip)
     return network_add_remote_ip_port(host_ip, default_port);
 }
 
+// Forward declarations
+void network_server_send(void);
+
 //-----------------------------------------------------------------------------------------------
 void network_delete_remote(unsigned short remote)
 {
@@ -533,18 +567,41 @@ void network_delete_remote(unsigned short remote)
 //-----------------------------------------------------------------------------------------------
 void network_cleanup_remote_characters(unsigned int remote_ip)
 {
-    // Release all characters owned by a remote IP back to local AI control
-    unsigned short i;
+    // Release characters owned by a remote IP.
+    // Player characters stay in the world (AI takes over) and are tracked for rejoin.
+    // Non-player characters just get their ownership cleared.
+    unsigned short i, d;
     repeat(i, MAX_CHARACTER)
     {
         if(main_character_on[i])
         {
             if(*((unsigned int*)(main_character_data[i]+252)) == remote_ip)
             {
-                // Clear remote ownership - AI will take over
+                if(*((unsigned short*)(main_character_data[i]+60)) & CHAR_FULL_NETWORK)
+                {
+                    // Player character — keep alive, track for rejoin
+                    d = MAX_DISCONNECTED;
+                    for(d = 0; d < MAX_DISCONNECTED; d++)
+                    {
+                        if(!disconnected_on[d]) break;
+                    }
+                    if(d == MAX_DISCONNECTED) d = 0;  // Overwrite oldest
+
+                    disconnected_ip[d] = remote_ip;
+                    disconnected_char[d] = i;
+                    disconnected_on[d] = TRUE;
+
+                    disconnected_remote_index[d] = main_character_data[i][250];
+                    disconnected_class[d] = main_character_data[i][204];
+
+                    log_message("INFO:   Player character %d stays in world (AI), tracked for rejoin from %d.%d.%d.%d",
+                        i,
+                        ((unsigned char*)&remote_ip)[0], ((unsigned char*)&remote_ip)[1],
+                        ((unsigned char*)&remote_ip)[2], ((unsigned char*)&remote_ip)[3]);
+                }
+                // Clear remote ownership so AI takes over
                 *((unsigned int*)(main_character_data[i]+252)) = 0;
                 main_character_data[i][250] = 0;
-                log_message("INFO:   Released character %d from disconnected remote", i);
             }
         }
     }
@@ -557,12 +614,245 @@ void network_disconnect_remote(unsigned short remote)
     if(remote < MAX_REMOTE && remote_on[remote])
     {
         unsigned int ip = remote_address[remote].host;
+        unsigned short d, si;
+        unsigned char has_entry = FALSE;
         log_message("INFO:   Disconnecting remote %d (%d.%d.%d.%d)",
             remote,
             ((unsigned char*)&ip)[0], ((unsigned char*)&ip)[1],
             ((unsigned char*)&ip)[2], ((unsigned char*)&ip)[3]);
+
+        // Save the room number before cleanup
+        unsigned short last_room = remote_room_number[remote];
+
         network_cleanup_remote_characters(ip);
+
+        // Set room number on any disconnected entry created by cleanup
+        for(d = 0; d < MAX_DISCONNECTED; d++)
+        {
+            if(disconnected_on[d] && disconnected_ip[d] == ip)
+            {
+                disconnected_room[d] = last_room;
+                has_entry = TRUE;
+                break;
+            }
+        }
+
+        // If no live character was found but we have synced data, still track for rejoin
+        if(!has_entry && lan_hosting)
+        {
+            for(si = 0; si < MAX_DISCONNECTED; si++)
+            {
+                if(synced_player_on[si] && synced_player_ip[si] == ip)
+                {
+                    // Find a slot
+                    for(d = 0; d < MAX_DISCONNECTED; d++)
+                    {
+                        if(!disconnected_on[d]) break;
+                    }
+                    if(d == MAX_DISCONNECTED) d = 0;
+
+                    disconnected_ip[d] = ip;
+                    disconnected_char[d] = MAX_CHARACTER;  // No live character
+                    disconnected_on[d] = TRUE;
+                    disconnected_class[d] = synced_player_data[si][204];
+                    disconnected_remote_index[d] = 0;
+                    disconnected_room[d] = last_room;
+                    log_message("INFO:   No live character for %d.%d.%d.%d but synced data exists — tracked for rejoin (room %d, class %d)",
+                        ((unsigned char*)&ip)[0], ((unsigned char*)&ip)[1],
+                        ((unsigned char*)&ip)[2], ((unsigned char*)&ip)[3],
+                        last_room, synced_player_data[si][204]);
+                    break;
+                }
+            }
+        }
+
         network_delete_remote(remote);
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_accept_pending_join(void)
+{
+    // Accept the pending join request — run the normal join logic
+    if(pending_join_ip == 0) return;
+
+    unsigned int joiner_ip = pending_join_ip;
+    unsigned short i;
+
+    network_add_remote_ip(joiner_ip);
+    log_message("INFO:   Accepted joiner %d.%d.%d.%d",
+        ((unsigned char*)&joiner_ip)[0], ((unsigned char*)&joiner_ip)[1],
+        ((unsigned char*)&joiner_ip)[2], ((unsigned char*)&joiner_ip)[3]);
+
+    // Check for rejoin — reassign existing character back to this player
+    unsigned char is_rejoin = 0;
+    unsigned char rejoin_class = 0;
+    unsigned short rejoin_char_index = MAX_CHARACTER;
+    unsigned short rejoin_room = map_current_room;  // Default to host's current room
+    for(i = 0; i < MAX_DISCONNECTED; i++)
+    {
+        if(disconnected_on[i] && disconnected_ip[i] == joiner_ip)
+        {
+            unsigned short ci = disconnected_char[i];
+            rejoin_room = disconnected_room[i];
+            if(ci < MAX_CHARACTER && main_character_on[ci])
+            {
+                // Character is still alive — give it back to the player
+                *((unsigned int*)(main_character_data[ci]+252)) = joiner_ip;
+                main_character_data[ci][250] = disconnected_remote_index[i];
+                is_rejoin = 1;
+                rejoin_class = disconnected_class[i];
+                rejoin_char_index = ci;
+                log_message("INFO:   Rejoin: reassigned character %d (class %d, hits %d) back to %d.%d.%d.%d",
+                    ci, rejoin_class, main_character_data[ci][82],
+                    ((unsigned char*)&joiner_ip)[0], ((unsigned char*)&joiner_ip)[1],
+                    ((unsigned char*)&joiner_ip)[2], ((unsigned char*)&joiner_ip)[3]);
+            }
+            else
+            {
+                // No live character (was in different room) — rejoin with synced data only
+                is_rejoin = 1;
+                rejoin_class = disconnected_class[i];
+                rejoin_char_index = MAX_CHARACTER;  // No live character to reference
+                log_message("INFO:   Rejoin (no live char): class %d, room %d for %d.%d.%d.%d",
+                    rejoin_class, rejoin_room,
+                    ((unsigned char*)&joiner_ip)[0], ((unsigned char*)&joiner_ip)[1],
+                    ((unsigned char*)&joiner_ip)[2], ((unsigned char*)&joiner_ip)[3]);
+            }
+            disconnected_on[i] = FALSE;
+            break;
+        }
+    }
+
+    // Send response to joiner
+    {
+        UDPpacket reply_packet;
+        reply_packet.channel = -1;
+        reply_packet.data = packet_buffer;
+        reply_packet.maxlen = MAX_PACKET_SIZE;
+        reply_packet.address.host = joiner_ip;
+        #ifdef LIL_ENDIAN
+            reply_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
+        #else
+            reply_packet.address.port = UDP_PORT;
+        #endif
+
+        // LAN join uses OKAY_YOU_CAN_PLAY (encrypted), server join uses COMMAND_JOIN (plain)
+        if(pending_join_continent == 0 && pending_join_direction == 0 &&
+           pending_join_letter == 0 && pending_join_pw_ok == 0)
+        {
+            // LAN join: game_in_progress: 0=lobby, 1=fresh mid-game, 2=rejoin
+            {
+                unsigned short b;
+                packet_begin(PACKET_TYPE_OKAY_YOU_CAN_PLAY);
+                    packet_add_unsigned_int(game_seed);
+                    packet_add_unsigned_char(is_rejoin ? 2 : 1);
+                    if(is_rejoin)
+                    {
+                        packet_add_unsigned_char(rejoin_class);
+                        packet_add_unsigned_short(rejoin_room);  // Room the player should rejoin in
+
+                        // Find synced data for this player's stats/name
+                        unsigned short si, synced_slot = MAX_DISCONNECTED;
+                        for(si = 0; si < MAX_DISCONNECTED; si++)
+                        {
+                            if(synced_player_on[si] && synced_player_ip[si] == joiner_ip)
+                            {
+                                synced_slot = si;
+                                break;
+                            }
+                        }
+
+                        if(synced_slot < MAX_DISCONNECTED)
+                        {
+                            // Start with synced data (has correct stats/name)
+                            unsigned char rejoin_merged[CHARACTER_SIZE];
+                            for(b = 0; b < CHARACTER_SIZE; b++)
+                            {
+                                rejoin_merged[b] = synced_player_data[synced_slot][b];
+                            }
+                            // Overlay position from live character if one exists
+                            if(rejoin_char_index < MAX_CHARACTER)
+                            {
+                                // Position: x,y,z,gotox,gotoy (floats at 0-19)
+                                for(b = 0; b < 20; b++)
+                                {
+                                    rejoin_merged[b] = main_character_data[rejoin_char_index][b];
+                                }
+                                // Facing/rotation matrix (floats at 108-143)
+                                for(b = 108; b < 144; b++)
+                                {
+                                    rejoin_merged[b] = main_character_data[rejoin_char_index][b];
+                                }
+                            }
+                            // else: no live character — position stays at 0,0,0 (room spawn point)
+                            for(b = 0; b < CHARACTER_SIZE; b++)
+                            {
+                                packet_add_unsigned_char(rejoin_merged[b]);
+                            }
+                            log_message("INFO:   Rejoin data: synced stats (hits=%d name=%.8s) live_char=%s room=%d",
+                                synced_player_data[synced_slot][82],
+                                (char*)(synced_player_data[synced_slot]+144),
+                                rejoin_char_index < MAX_CHARACTER ? "yes" : "no",
+                                rejoin_room);
+                            synced_player_on[synced_slot] = FALSE;
+                        }
+                        else if(rejoin_char_index < MAX_CHARACTER)
+                        {
+                            // No synced data — send live character data as-is (fallback)
+                            for(b = 0; b < CHARACTER_SIZE; b++)
+                            {
+                                packet_add_unsigned_char(main_character_data[rejoin_char_index][b]);
+                            }
+                            log_message("INFO:   Rejoin data: no synced stats, using live data (hits=%d)",
+                                main_character_data[rejoin_char_index][82]);
+                        }
+                    }
+                packet_end();
+                reply_packet.len = packet_length;
+                SDLNet_UDP_Send(remote_socket, -1, &reply_packet);
+                log_message("INFO:   Sent OKAY_YOU_CAN_PLAY (mid-game, rejoin=%d, bytes=%d)", is_rejoin, packet_length);
+            }
+        }
+        else
+        {
+            // Server-mediated join — send response to joiner
+            packet_begin(PACKET_TYPE_COMMAND_JOIN);
+                packet_add_unsigned_char(pending_join_continent);
+                packet_add_unsigned_char(pending_join_direction);
+                packet_add_unsigned_char(pending_join_letter);
+                packet_add_unsigned_char(pending_join_pw_ok);
+                packet_add_ip(joiner_ip);
+                packet_add_unsigned_int(game_seed);
+            packet_end_plain();
+            reply_packet.len = packet_length;
+            SDLNet_UDP_Send(remote_socket, -1, &reply_packet);
+
+            // Notify master server
+            packet_begin(PACKET_TYPE_COMMAND_JOIN);
+                packet_add_unsigned_char(pending_join_continent);
+                packet_add_unsigned_char(pending_join_direction);
+                packet_add_unsigned_char(pending_join_letter);
+                packet_add_unsigned_char(pending_join_pw_ok);
+                packet_add_ip(joiner_ip);
+            packet_end_plain();
+            network_server_send();
+        }
+    }
+
+    pending_join_ip = 0;
+}
+
+//-----------------------------------------------------------------------------------------------
+void network_deny_pending_join(void)
+{
+    // Deny the pending join — just clear it, joiner will time out
+    if(pending_join_ip)
+    {
+        log_message("INFO:   Denied joiner %d.%d.%d.%d",
+            ((unsigned char*)&pending_join_ip)[0], ((unsigned char*)&pending_join_ip)[1],
+            ((unsigned char*)&pending_join_ip)[2], ((unsigned char*)&pending_join_ip)[3]);
+        pending_join_ip = 0;
     }
 }
 
@@ -575,11 +865,39 @@ void network_peer_tick(void)
 
     if(!network_on || num_remote == 0) return;
 
+    // Send character sync to host after a short delay (client only, one-time after spawn)
+    // Delay ensures the host has received at least one ROOM_UPDATE and created the character
+    if(character_sync_pending && !lan_hosting && play_game_active)
+    {
+        character_sync_pending--;
+        if(character_sync_pending == 0)
+        {
+            if(local_player_character[0] < MAX_CHARACTER && main_character_on[local_player_character[0]])
+            {
+                unsigned short b;
+                unsigned short ci = local_player_character[0];
+                packet_begin(PACKET_TYPE_PEER_HEARTBEAT);
+                    packet_add_unsigned_char(HEARTBEAT_SUBTYPE_CHARSYNC);
+                    packet_add_unsigned_char((unsigned char)ci);  // Client's local index (host uses this to find the character via byte 250)
+                    for(b = 0; b < CHARACTER_SIZE; b++)
+                    {
+                        packet_add_unsigned_char(main_character_data[ci][b]);
+                    }
+                packet_end();
+                network_send(NETWORK_ALL_REMOTES_IN_GAME);
+                log_message("INFO:   Sent character sync to host (%d bytes, char %d, class=%d hits=%d name=%.8s)",
+                    CHARACTER_SIZE, ci, main_character_data[ci][204], main_character_data[ci][82],
+                    (char*)(main_character_data[ci]+144));
+            }
+        }
+    }
+
     // Send heartbeat to all remotes periodically
     if(now - peer_heartbeat_last >= PEER_HEARTBEAT_INTERVAL_MS)
     {
         peer_heartbeat_last = now;
         packet_begin(PACKET_TYPE_PEER_HEARTBEAT);
+            packet_add_unsigned_char(HEARTBEAT_SUBTYPE_KEEPALIVE);
         packet_end();
         network_send(NETWORK_ALL_REMOTES_IN_GAME);
     }
@@ -1137,45 +1455,24 @@ void network_listen(void)
                         }
                         else if(lan_hosting || num_remote > 0)
                         {
-                            // We're in the game - add this joiner as a remote
-                            network_add_remote_ip(joiner_ip);
-                            log_message("INFO:     Added joiner %d.%d.%d.%d to game",
-                                ((unsigned char*)&joiner_ip)[0], ((unsigned char*)&joiner_ip)[1],
-                                ((unsigned char*)&joiner_ip)[2], ((unsigned char*)&joiner_ip)[3]);
-
-                            // Send COMMAND_JOIN to the joiner directly (peer-to-peer)
-                            packet_begin(PACKET_TYPE_COMMAND_JOIN);
-                                packet_add_unsigned_char(continent);
-                                packet_add_unsigned_char(direction);
-                                packet_add_unsigned_char(letter);
-                                packet_add_unsigned_char(pw_ok);
-                                packet_add_ip(joiner_ip);
-                                packet_add_unsigned_int(game_seed);
-                            packet_end_plain();
+                            // Mid-game join request — queue for host approval
+                            if(pending_join_ip == 0)
                             {
-                                UDPpacket reply_packet;
-                                reply_packet.channel = -1;
-                                reply_packet.data = packet_buffer;
-                                reply_packet.len = packet_length;
-                                reply_packet.maxlen = MAX_PACKET_SIZE;
-                                reply_packet.address.host = joiner_ip;
-                                #ifdef LIL_ENDIAN
-                                    reply_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
-                                #else
-                                    reply_packet.address.port = UDP_PORT;
-                                #endif
-                                SDLNet_UDP_Send(remote_socket, -1, &reply_packet);
+                                pending_join_ip = joiner_ip;
+                                pending_join_continent = continent;
+                                pending_join_direction = direction;
+                                pending_join_letter = letter;
+                                pending_join_pw_ok = pw_ok;
+                                log_message("INFO:     Join request from %d.%d.%d.%d queued for host approval",
+                                    ((unsigned char*)&joiner_ip)[0], ((unsigned char*)&joiner_ip)[1],
+                                    ((unsigned char*)&joiner_ip)[2], ((unsigned char*)&joiner_ip)[3]);
                             }
-
-                            // Notify main server that we handled it
-                            packet_begin(PACKET_TYPE_COMMAND_JOIN);
-                                packet_add_unsigned_char(continent);
-                                packet_add_unsigned_char(direction);
-                                packet_add_unsigned_char(letter);
-                                packet_add_unsigned_char(pw_ok);
-                                packet_add_ip(joiner_ip);
-                            packet_end_plain();
-                            network_server_send();
+                            else
+                            {
+                                log_message("INFO:     Join request from %d.%d.%d.%d ignored (another pending)",
+                                    ((unsigned char*)&joiner_ip)[0], ((unsigned char*)&joiner_ip)[1],
+                                    ((unsigned char*)&joiner_ip)[2], ((unsigned char*)&joiner_ip)[3]);
+                            }
                         }
                     }
                     else if(packet_buffer[0] == PACKET_TYPE_REPLY_JOIN_OKAY)
@@ -1243,12 +1540,12 @@ void network_listen(void)
                             ((unsigned char*)&down_ip)[0], ((unsigned char*)&down_ip)[1],
                             ((unsigned char*)&down_ip)[2], ((unsigned char*)&down_ip)[3]);
 
-                        // Find and remove this remote
+                        // Find and remove this remote (with character cleanup)
                         repeat(i, MAX_REMOTE)
                         {
                             if(remote_on[i] && remote_address[i].host == down_ip)
                             {
-                                network_delete_remote(i);
+                                network_disconnect_remote(i);
                                 break;
                             }
                         }
@@ -1583,8 +1880,47 @@ void network_listen(void)
                     {
                         packet_read_unsigned_short(room_number);        // The room number this sender is in...
                         packet_read_unsigned_short(seed);               // The map seed this sender is using...
+
+                        // Track this remote's room number
+                        {
+                            unsigned short ri;
+                            repeat(ri, MAX_REMOTE)
+                            {
+                                if(remote_on[ri] && remote_address[ri].host == udp_packet.address.host)
+                                {
+                                    remote_room_number[ri] = room_number;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Read door_flags and num_char early so we can detect goodbye packets
+                        // before the room mismatch branch skips processing
+                        unsigned char peek_door_flags = 0;
+                        unsigned char peek_num_char = 0;
+                        if(seed == 0)
+                        {
+                            unsigned short saved_readpos = packet_readpos;
+                            if(packet_readpos < packet_length) packet_read_unsigned_char(peek_door_flags);
+                            if(packet_readpos < packet_length) packet_read_unsigned_char(peek_num_char);
+                            packet_readpos = saved_readpos;  // Rewind — will be read again below
+                        }
+
+                        // Goodbye packet (0 characters) — handle disconnect regardless of room
+                        if(peek_num_char == 0 && seed == 0 && lan_hosting && play_game_active)
+                        {
+                            unsigned short ri;
+                            repeat(ri, MAX_REMOTE)
+                            {
+                                if(remote_on[ri] && remote_address[ri].host == udp_packet.address.host)
+                                {
+                                    network_disconnect_remote(ri);
+                                    ri = MAX_REMOTE;
+                                }
+                            }
+                        }
                         // If remote player is in a different room, silently despawn their characters
-                        if(room_number != map_current_room)
+                        else if(room_number != map_current_room)
                         {
                             repeat(i, MAX_CHARACTER)
                             {
@@ -1598,8 +1934,8 @@ void network_listen(void)
                                 }
                             }
                         }
-                        // TODO: Seed should be checked properly
-                        if(room_number == map_current_room && seed == 0 && netlist)
+                        // Same room — process character updates
+                        if(room_number == map_current_room && seed == 0 && netlist && peek_num_char > 0)
                         {
                             // Start to kill off any of this host's characters...
                             repeat(i, MAX_CHARACTER)
@@ -1634,10 +1970,9 @@ void network_listen(void)
                                 }
                             }
 
-
-
                             packet_read_unsigned_char(door_flags);      // The door flags for this room...
-                            packet_read_unsigned_char(num_char);        // The number of characters in this packet...  (each character should have 11 or 19 bytes of data...)
+                            packet_read_unsigned_char(num_char);        // The number of characters in this packet...
+
                             length = packet_length - packet_readpos;    // The number of bytes remaining...
                             while(num_char > 0 && length >= 11)
                             {
@@ -1786,6 +2121,55 @@ void network_listen(void)
                             }
                         }
                     }
+                    if(packet_buffer[0] == PACKET_TYPE_PEER_HEARTBEAT)
+                    {
+                        // Check sub-type
+                        unsigned char heartbeat_subtype = HEARTBEAT_SUBTYPE_KEEPALIVE;
+                        if(packet_readpos < packet_length)
+                        {
+                            packet_read_unsigned_char(heartbeat_subtype);
+                        }
+                        if(heartbeat_subtype == HEARTBEAT_SUBTYPE_CHARSYNC && lan_hosting)
+                        {
+                            // Client sends full character data — store in separate buffer
+                            // (can't put in main_character_data because mark-and-sweep overwrites it every frame)
+                            unsigned char sync_client_index = 0;
+                            unsigned short b, slot;
+                            if(packet_readpos < packet_length)
+                            {
+                                packet_read_unsigned_char(sync_client_index);
+                            }
+                            // Find or create a slot for this IP
+                            slot = MAX_DISCONNECTED;
+                            for(b = 0; b < MAX_DISCONNECTED; b++)
+                            {
+                                if(synced_player_on[b] && synced_player_ip[b] == udp_packet.address.host) { slot = b; break; }
+                            }
+                            if(slot == MAX_DISCONNECTED)
+                            {
+                                for(b = 0; b < MAX_DISCONNECTED; b++)
+                                {
+                                    if(!synced_player_on[b]) { slot = b; break; }
+                                }
+                                if(slot == MAX_DISCONNECTED) slot = 0;  // Overwrite oldest
+                            }
+                            synced_player_ip[slot] = udp_packet.address.host;
+                            synced_player_on[slot] = TRUE;
+                            for(b = 0; b < CHARACTER_SIZE && packet_readpos < packet_length; b++)
+                            {
+                                packet_read_unsigned_char(synced_player_data[slot][b]);
+                            }
+                            log_message("INFO:   Character sync stored in slot %d from %d.%d.%d.%d (class=%d hits=%d name=%.8s)",
+                                slot,
+                                ((unsigned char*)&udp_packet.address.host)[0],
+                                ((unsigned char*)&udp_packet.address.host)[1],
+                                ((unsigned char*)&udp_packet.address.host)[2],
+                                ((unsigned char*)&udp_packet.address.host)[3],
+                                synced_player_data[slot][204],
+                                synced_player_data[slot][82],
+                                (char*)(synced_player_data[slot]+144));
+                        }
+                    }
                     if(packet_buffer[0] == PACKET_TYPE_I_WANNA_PLAY)
                     {
                         // Someone wants to join our game
@@ -1800,36 +2184,58 @@ void network_listen(void)
 
                         if(lan_hosting)
                         {
-                            // Accept the player - clean up any stale characters from a previous connection
-                            UDPpacket reply_packet;
-                            network_cleanup_remote_characters(udp_packet.address.host);
-                            network_add_remote_ip(udp_packet.address.host);
+                            if(play_game_active && pending_join_ip == 0)
+                            {
+                                // Mid-game: queue for host approval
+                                pending_join_ip = udp_packet.address.host;
+                                pending_join_continent = 0;
+                                pending_join_direction = 0;
+                                pending_join_letter = 0;
+                                pending_join_pw_ok = 0;
+                                log_message("INFO:   LAN join request queued for host approval from %d.%d.%d.%d",
+                                    ((unsigned char*)&udp_packet.address.host)[0],
+                                    ((unsigned char*)&udp_packet.address.host)[1],
+                                    ((unsigned char*)&udp_packet.address.host)[2],
+                                    ((unsigned char*)&udp_packet.address.host)[3]);
+                            }
+                            else if(!play_game_active)
+                            {
+                                // Lobby: auto-accept
+                                UDPpacket reply_packet;
+                                network_cleanup_remote_characters(udp_packet.address.host);
+                                network_add_remote_ip(udp_packet.address.host);
 
-                            // Send OKAY_YOU_CAN_PLAY reply with our game seed
-                            packet_begin(PACKET_TYPE_OKAY_YOU_CAN_PLAY);
-                                packet_add_unsigned_int(game_seed);
-                            packet_end();
+                                packet_begin(PACKET_TYPE_OKAY_YOU_CAN_PLAY);
+                                    packet_add_unsigned_int(game_seed);
+                                    packet_add_unsigned_char(0);  // game_in_progress = false
+                                packet_end();
 
-                            reply_packet.channel = -1;
-                            reply_packet.data = packet_buffer;
-                            reply_packet.len = packet_length;
-                            reply_packet.maxlen = MAX_PACKET_SIZE;
-                            reply_packet.address.host = udp_packet.address.host;
-                            #ifdef LIL_ENDIAN
-                                reply_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
-                            #else
-                                reply_packet.address.port = UDP_PORT;
-                            #endif
-                            SDLNet_UDP_Send(remote_socket, -1, &reply_packet);
-                            log_message("INFO:   Sent OKAY_YOU_CAN_PLAY reply");
+                                reply_packet.channel = -1;
+                                reply_packet.data = packet_buffer;
+                                reply_packet.len = packet_length;
+                                reply_packet.maxlen = MAX_PACKET_SIZE;
+                                reply_packet.address.host = udp_packet.address.host;
+                                #ifdef LIL_ENDIAN
+                                    reply_packet.address.port = (UDP_PORT>>8) | ((UDP_PORT&255)<<8);
+                                #else
+                                    reply_packet.address.port = UDP_PORT;
+                                #endif
+                                SDLNet_UDP_Send(remote_socket, -1, &reply_packet);
+                                log_message("INFO:   Sent OKAY_YOU_CAN_PLAY reply (lobby)");
+                            }
                         }
                     }
                     if(packet_buffer[0] == PACKET_TYPE_OKAY_YOU_CAN_PLAY)
                     {
                         // Host accepted our join request
                         unsigned int host_seed;
+                        unsigned char game_in_progress = 0;
                         packet_read_unsigned_int(host_seed);
-                        log_message("INFO:   Got OKAY_YOU_CAN_PLAY (host seed %d)", host_seed);
+                        if(packet_readpos < packet_length)
+                        {
+                            packet_read_unsigned_char(game_in_progress);
+                        }
+                        log_message("INFO:   Got OKAY_YOU_CAN_PLAY (host seed %d, in_progress %d)", host_seed, game_in_progress);
 
                         if(join_state >= 1)
                         {
@@ -1837,9 +2243,44 @@ void network_listen(void)
                             game_seed = host_seed;
                             network_cleanup_remote_characters(udp_packet.address.host);
                             network_add_remote_ip(udp_packet.address.host);
-                            join_state = 4;  // Connected, waiting in lobby
                             main_game_active = TRUE;
-                            log_message("INFO:   Successfully joined game!");
+                            if(game_in_progress == 2)
+                            {
+                                rejoin_character_class = 0;
+                                rejoin_character_ready = FALSE;
+                                rejoin_room_number = 0;
+                                if(packet_readpos < packet_length)
+                                {
+                                    packet_read_unsigned_char(rejoin_character_class);
+                                }
+                                if(packet_readpos < packet_length)
+                                {
+                                    packet_read_unsigned_short(rejoin_room_number);
+                                }
+                                // Read embedded character data if present
+                                if(packet_readpos < packet_length)
+                                {
+                                    unsigned short b;
+                                    for(b = 0; b < CHARACTER_SIZE && packet_readpos < packet_length; b++)
+                                    {
+                                        packet_read_unsigned_char(rejoin_character_data[b]);
+                                    }
+                                    rejoin_character_ready = TRUE;
+                                    log_message("INFO:   Read %d bytes of rejoin character data from OKAY_YOU_CAN_PLAY", b);
+                                }
+                                join_state = 7;  // Rejoin — skip spawn, take over old character
+                                log_message("INFO:   Rejoin — skipping character spawn! (class %d, data=%d)", rejoin_character_class, rejoin_character_ready);
+                            }
+                            else if(game_in_progress == 1)
+                            {
+                                join_state = 6;  // Fresh mid-game join — skip lobby, show spawn
+                                log_message("INFO:   Mid-game join — skipping lobby!");
+                            }
+                            else
+                            {
+                                join_state = 4;  // Connected, waiting in lobby
+                                log_message("INFO:   Successfully joined game lobby!");
+                            }
                         }
                     }
                     if(packet_buffer[0] == PACKET_TYPE_PLAYER_READY)

@@ -299,6 +299,13 @@ const char ff_map[MAX_FAST_FUNCTION][32] = {
 #define SYS_REQUESTJOINSERVER       244
 #define SYS_SERVERPLAYERCOUNT       245
 #define SYS_REQUESTPLAYERCOUNT      246
+#define SYS_PENDINGJOINIP           247
+#define SYS_ACCEPTJOIN              248
+#define SYS_DENYJOIN                249
+#define SYS_REJOINCLASS             250
+#define SYS_REJOINREADY             251
+#define SYS_APPLYREJOINDATA         252
+#define SYS_REJOINROOM              253
 #define SYS_MODELCHECKHACK          255
 
 
@@ -2116,9 +2123,55 @@ signed char run_script(unsigned char* address, unsigned char* file_start, unsign
                     case SYS_REQUESTPLAYERCOUNT:
                         network_request_player_count();
                         break;
+                    case SYS_ACCEPTJOIN:
+                        network_accept_pending_join();
+                        break;
+                    case SYS_DENYJOIN:
+                        network_deny_pending_join();
+                        break;
+                    case SYS_APPLYREJOINDATA:
+                        // Apply host's authoritative character data to the newly spawned character
+                        log_message("INFO:   SYS_APPLYREJOINDATA called: m=%d host_ready=%d on=%d",
+                            m, rejoin_character_ready, (m < MAX_CHARACTER) ? main_character_on[m] : 0);
+                        if(m < MAX_CHARACTER && main_character_on[m] && rejoin_character_ready)
+                        {
+                            unsigned short b;
+                            // Save network fields (set by the local spawn, not from host)
+                            unsigned int save_ip = *((unsigned int*)(main_character_data[m]+252));
+                            unsigned char save_ri = main_character_data[m][250];
+                            unsigned char save_ni = main_character_data[m][251];
+                            unsigned short save_flags = *((unsigned short*)(main_character_data[m]+60));
+
+                            // Copy all data from host (stats, name, position, equipment — everything)
+                            repeat(b, CHARACTER_SIZE)
+                            {
+                                main_character_data[m][b] = rejoin_character_data[b];
+                            }
+
+                            // Restore network fields
+                            *((unsigned int*)(main_character_data[m]+252)) = save_ip;
+                            main_character_data[m][250] = save_ri;
+                            main_character_data[m][251] = save_ni;
+                            *((unsigned short*)(main_character_data[m]+60)) = save_flags;
+
+                            rejoin_character_ready = FALSE;
+                            log_message("INFO:   Applied host data to char %d: class=%d hits=%d name=%.8s pos=%.1f,%.1f,%.1f",
+                                m, main_character_data[m][204], main_character_data[m][82],
+                                (char*)(main_character_data[m]+144),
+                                *((float*)(main_character_data[m]+0)),
+                                *((float*)(main_character_data[m]+4)),
+                                *((float*)(main_character_data[m]+8)));
+                        }
+                        break;
                     case SYS_STARTGAME:
                         play_game_active = TRUE;
-log_message("INFO:   Starting game");
+                        log_message("INFO:   Starting game");
+                        // Client sends character data to host for authoritative sync
+                        // Delay 60 frames (~1 sec) so the host creates the character from ROOM_UPDATE first
+                        if(!lan_hosting && num_remote > 0)
+                        {
+                            character_sync_pending = 60;
+                        }
                         repeat(i, MAX_LOCAL_PLAYER)
                         {
                             repeat(j, 4)
@@ -4217,6 +4270,22 @@ sprintf(DEBUG_STRING, "Autotrim length == %f", autotrim_length);
                                 }
                             }
                         }
+                        break;
+                    case SYS_PENDINGJOINIP:
+                        // Returns the IP of a player waiting for host approval (0 = none)
+                        i = pending_join_ip;
+                        break;
+                    case SYS_REJOINCLASS:
+                        // Returns the character class for rejoin (set by host in OKAY_YOU_CAN_PLAY)
+                        i = rejoin_character_class;
+                        break;
+                    case SYS_REJOINREADY:
+                        // Returns TRUE if rejoin character data has been received from host
+                        i = rejoin_character_ready;
+                        break;
+                    case SYS_REJOINROOM:
+                        // Returns the host's room number for rejoin
+                        i = rejoin_room_number;
                         break;
                     case SYS_LOCALPLAYER:
                         // j is the local player (0-3)...  Return value needn't be a valid character...
