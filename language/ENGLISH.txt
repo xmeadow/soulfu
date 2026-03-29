@@ -37,7 +37,7 @@ Note:  You'll need to restart for
        some changes to work...
 
 Device :
-None,Keyboard,Joystk 1,Joystk 2,Joystk 3,Joystk 4
+None,Keyboard,Joystk 1,Joystk 2,Joystk 3,Joystk 4,Touch
 Left   :
 
 Right  :

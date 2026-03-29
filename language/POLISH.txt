@@ -1,25 +1,25 @@
-Menu gÓówne
+Menu gï¿½ï¿½wne
 Ustawienia
 Gracz 
 Aktualizowanie
-WiadomoÕÑ
+Wiadomoï¿½ï¿½
 Mapa
 Statystyki
 Techniki
 Przedmioty
 Ekwipunek
-KsiÒga
+Ksiï¿½ga
 Skrzynia
 Dziurka od klucza
-PuÓapka
+Puï¿½apka
 Gra lokalna
 Gra sieciowa
 Sterowanie
 Kup mnie
-WyjÕcie
+Wyjï¿½cie
 Zapisz zmiany
 Kontynuuj
-WróÑ
+Wrï¿½ï¿½
 Kup
 Sprzedaj
 Zamknij
@@ -28,16 +28,16 @@ Ekran  :
 Kolory :
 Gamma  :
 Tryb   :
-Okno,PeÓen ekran
-DÖwiÒk :
+Okno,Peï¿½en ekran
+Dï¿½wiï¿½k :
 Muzyka :
 Skala  :
-MaÓa,Normalna,Du×a,Ogromna
-Uwaga: Zrestartuj grÒ, ×eby ustawienia
-       weszÓy w ×ycie...
-SzybkoÕÑ   :
-UrzÐdzenie :
-Brak,Klawiatura,Joystk 1,Joystk 2,Joystk 3,Joystk 4
+Maï¿½a,Normalna,Duï¿½a,Ogromna
+Uwaga: Zrestartuj grï¿½, ï¿½eby ustawienia
+       weszï¿½y w ï¿½ycie...
+Szybkoï¿½ï¿½   :
+Urzï¿½dzenie :
+Brak,Klawiatura,Joystk 1,Joystk 2,Joystk 3,Joystk 4,Touch
 Lewo   :
 Przycisk 1,Przycisk 2,Przycisk 3,Przycisk 4,Przycisk 5,Przycisk 6,Przycisk 7,Przycisk 8,Brak
 Prawo  :
@@ -47,48 +47,48 @@ Przedm.:
 Ekwip. :
 Wolno  :
 Szybko :
-Ùycie:
+ï¿½ycie:
 Mana:
 Poziom:
-DoÕw.:
+Doï¿½w.:
 Mount:
-SiÓ:
-ZrÒ:
+Siï¿½:
+Zrï¿½:
 Int:
 Punkty:
-SiÓa:
-ZrÒcznoÕÑ:
+Siï¿½a:
+Zrï¿½cznoï¿½ï¿½:
 Inteligencja:
-Wszelkie prawa zastrze×one
+Wszelkie prawa zastrzeï¿½one
 Sakiewka
-GÓowa
+Gï¿½owa
 Szyja
-TuÓów
+Tuï¿½ï¿½w
 Plecy
 Stopy
-DÓonie
+Dï¿½onie
 Lewo
 Prawo
-MiÓosierdzie:
-SkrzÒtnoÕÑ:
+Miï¿½osierdzie:
+Skrzï¿½tnoï¿½ï¿½:
 Honor:
 Wiara:
 Odwaga:
-SolidarnoÕÑ:
-Odznaka MiÓosierdzia
-Odznaka SkrzÒtnoÕÑi
+Solidarnoï¿½ï¿½:
+Odznaka Miï¿½osierdzia
+Odznaka Skrzï¿½tnoï¿½ï¿½i
 Odznaka Honoru
 Odznaka Wiary
 Odznaka Odwagi
-Odznaka SolidarnoÕÑi
-ÙoÓnierz
+Odznaka Solidarnoï¿½ï¿½i
+ï¿½oï¿½nierz
 Czarodziej
 Uzdrowicielka
 Gnom
 Elf
 Mistyk
 Krasnolud
-Øotrzyk
+ï¿½otrzyk
 92 Reserved
 93 Reserved
 94 Reserved
@@ -177,11 +177,11 @@ Klawiatura
 177 Reserved
 178 Reserved
 179 Reserved
-Otwórz grÒ
-NarzÒdzia
-DziÒki
-Chcesz wiÒcej?!
-BÐdÖ miÓy!
+Otwï¿½rz grï¿½
+Narzï¿½dzia
+Dziï¿½ki
+Chcesz wiï¿½cej?!
+Bï¿½dï¿½ miï¿½y!
 Jest darmowa!
 Najlepsi
 Obrona przed ostrzem
@@ -189,7 +189,7 @@ Obrona przed obuchem
 Obrona przed ogniem
 Obrona przed lodem
 Obrona przed kwasem
-Obrona przed prÐdem
+Obrona przed prï¿½dem
 KONIEC GRY
 GRASZ?
 Kup  ($10)
@@ -198,12 +198,12 @@ Rzeczy
 Cheat
 Bronie
 Akcje
-GÓowa
-TuÓów
+Gï¿½owa
+Tuï¿½ï¿½w
 Nogi
 Ekwipunek
 Cnoty
-ZamieÔ gÓoÕniki
+Zamieï¿½ gï¿½oï¿½niki
 Szybko i brzydko
 Fajne cienie
 Fajna woda
@@ -215,38 +215,38 @@ Testowanie
 Jak obraz?
 Czas: 
 Jest OK
-Zapisz grÒ
+Zapisz grï¿½
 Slot 1,Slot 2,Slot 3,Slot 4,Slot 5,Slot 6,Slot 7,Slot 8,Slot 9,Slot 10,Slot 11,Slot 12
-!BÐdÖ miÓy!
-DziÒki!
-Ta gra to NICEWARE!  By odblokowaÑ
-peÓnÐ wersjÒ, MUSISZ zrobiÑ coÕ
-miÓego dla kogoÕ innego. I ju×!
-Po prostu przepisz zdanie poni×ej
-i mo×esz graÑ...
-Jest haczyk! Musisz zrobiÑ dobry
-uczynek za ka×dym razem, kiedy
-chcesz zagraÑ...
-I powiedz innym o SoulFu, jeÕli
-jeszcze tego nie zrobiÓeÕ!
+!Bï¿½dï¿½ miï¿½y!
+Dziï¿½ki!
+Ta gra to NICEWARE!  By odblokowaï¿½
+peï¿½nï¿½ wersjï¿½, MUSISZ zrobiï¿½ coï¿½
+miï¿½ego dla kogoï¿½ innego. I juï¿½!
+Po prostu przepisz zdanie poniï¿½ej
+i moï¿½esz graï¿½...
+Jest haczyk! Musisz zrobiï¿½ dobry
+uczynek za kaï¿½dym razem, kiedy
+chcesz zagraï¿½...
+I powiedz innym o SoulFu, jeï¿½li
+jeszcze tego nie zrobiï¿½eï¿½!
  graczy sieciowych
-OpuÕÑ grÒ
-Zacznij grÒ
+Opuï¿½ï¿½ grï¿½
+Zacznij grï¿½
 Tabela najlepszych
-ImiÒ
+Imiï¿½
 Wynik
 Klasa
 Puf!
-Nadzieja zostaÓa stracona...  Prawie...
-Nie mo×na
-NaprawdÒ wyjÕÑ?
+Nadzieja zostaï¿½a stracona...  Prawie...
+Nie moï¿½na
+Naprawdï¿½ wyjï¿½ï¿½?
 Mysz w sklepie
 Rzeczy:
 AkcjaP:
 AkcjaL:
 Kamera
 Ruch 
- pomocników
+ pomocnikï¿½w
 250 Reserved
 251 Reserved
 252 Reserved
@@ -256,7 +256,7 @@ Ruch
 256 Reserved
 257 Reserved
 258 Reserved
-PomiÔ czoÓówkÒ
+Pomiï¿½ czoï¿½ï¿½wkï¿½
 "Wszystkie zwierzeta sa rowne, ale niektore sa rowniejsze od innych." -George_Orwell
 "Sztuczki i zdrady to domena glupcow, ktorzy nie maja dosc rozumu, by byc uczciwymi." -Benjamin_Franklin
 "Niewazne, kto glosuje. Wazne, kto liczy glosy." -Jozef_Stalin
@@ -329,60 +329,60 @@ Jedz wiecej owocow!
 Usmiechaj sie wiecej!  Usmiechnij sie TERAZ!
 
 puste
-PublicznoÕÑ
+Publicznoï¿½ï¿½
 Beczka
-Beczka-PuÓapka
+Beczka-Puï¿½apka
 Ogromny Nietoperz
 Nietoperz Jaskiniowy
 Nietoperz Lochowy
 Nietoperz-Wampir
 Przycisk
 Sokole Oko
-SÒpi Mag
+Sï¿½pi Mag
 Opierzony Rycerz
 Tengu
-KrzesÓo
+Krzesï¿½o
 Skrzynia
 Mimik
-Skrzynia-PuÓapka
+Skrzynia-Puï¿½apka
 Metalowa Skrzynia
 Gnomikopter
 Kontener
-Kontener-PuÓapka
+Kontener-Puï¿½apka
 Drzwi
 Czerwony Smok
 Zielony Smok
 Niebieski Smok
 Czarny Smok
-BiaÓy Smok
+Biaï¿½y Smok
 Nietoperze Oko
 Oko Meduzy
 Wartownik
 Magiczne Oko
-LatajÐca BroÔ
+Latajï¿½ca Broï¿½
 Kamienny Golem
-Ùelazny Golem
-KrysztaÓowy Golem
+ï¿½elazny Golem
+Krysztaï¿½owy Golem
 Gnomi Moloch
 Gremlin
 Gremf
 Papa Gremf
-DiabeÓek
-PÒdrak
-BÓotniak
-SzkarÓak
+Diabeï¿½ek
+Pï¿½drak
+Bï¿½otniak
+Szkarï¿½ak
 Zmroczniak
-Mama PÒdraka
-Mama BÓotniaka
-Mama SzkarÓaka
+Mama Pï¿½draka
+Mama Bï¿½otniaka
+Mama Szkarï¿½aka
 Mama Zmroczniaka
 Gno-Kart
 Gnomia Taczanka
 Kociak
 Szczeniak
-Du×y 
-JaszczuroczÓek
-DrÒczyciel
+Duï¿½y 
+Jaszczuroczï¿½ek
+Drï¿½czyciel
 Naga
 Drakon
 Pomiot
@@ -392,7 +392,7 @@ Diabli Pomiot
 Kamienny Czyhacz
 Pan Stalagmit
 Sopel
-Ùelazny Kolec
+ï¿½elazny Kolec
 Nieduza
 Gorgona
 Meduza
@@ -411,58 +411,58 @@ Mroczny Czempion
 Wielki Szczur
 Szczur Laboratoryjny
 Szczur Plagi
-Szczurzy Król Mrozu
+Szczurzy Krï¿½l Mrozu
 Karaluszek
 Kapciosyf
 Chwytacz
 Pojmacz
-ÓódÖ
+ï¿½ï¿½dï¿½
 Czacha
-×niwiarz
-Mag KoÕci
-Król Liszaj
+ï¿½niwiarz
+Mag Koï¿½ci
+Krï¿½l Liszaj
 Glut
-MaÖ
+Maï¿½
 Kleks
 Beton
-GluciÐtko
-MaziÐtko
-KleksiÐtko
+Gluciï¿½tko
+Maziï¿½tko
+Kleksiï¿½tko
 Betonik
-Szmaragdowy WÐ×
-Grzechotnik PyÓowy
-KrÒtacz
-×mija-Plujka
+Szmaragdowy Wï¿½ï¿½
+Grzechotnik Pyï¿½owy
+Krï¿½tacz
+ï¿½mija-Plujka
 Giermek
-UczeÔ
+Uczeï¿½
 Strzelec
 Pomnik
-SplÐtane PnÐcza
+Splï¿½tane Pnï¿½cza
 Chochli 
 Gnomi 
-CzoÓg
+Czoï¿½g
 Zwiad
-PajÐk Okopowy
+Pajï¿½k Okopowy
 Pustelnik Szafirowy
 Krwawa Wdowa
-PajÒcza Królowa
+Pajï¿½cza Krï¿½lowa
 Drzewo
-Mag PnÐczy
+Mag Pnï¿½czy
 Zaklinacz
-PrzywoÓywacz
-CzarnoksiÒ×nik
+Przywoï¿½ywacz
+Czarnoksiï¿½ï¿½nik
 Noggindorf Wielki
-Stró×
+Strï¿½ï¿½
 Obserwator
-Czerwone Smocze SzczeniÒ
-Zielone Smocze SzczeniÒ
-Niebieskie Smocze SzczeniÒ
-Czarne Smocze SzczeniÒ
-BiaÓe Smocze SzczeniÒ
+Czerwone Smocze Szczeniï¿½
+Zielone Smocze Szczeniï¿½
+Niebieskie Smocze Szczeniï¿½
+Czarne Smocze Szczeniï¿½
+Biaï¿½e Smocze Szczeniï¿½
 Ognik
 Duch
 Zjawa
-Upiór
+Upiï¿½r
 Widmo
 Hau
 Straszny Hau
@@ -471,4 +471,4 @@ Hot Dog
 Zombi
 Ghul
 Mumia
-ByÓy Faraon
+Byï¿½y Faraon

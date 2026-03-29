@@ -471,6 +471,7 @@
 #define SYS_LOAD                    228
 #define SYS_SCREENPARAMS            229
 #define SYS_PAUSE                   230
+#define SYS_TOUCHCONTROLS           231
 #define SYS_MODELCHECKHACK          255
 
 

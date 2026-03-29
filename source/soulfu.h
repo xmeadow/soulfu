@@ -112,6 +112,30 @@ SF_EXTERN unsigned char player_device_type[MAX_LOCAL_PLAYER];  // None, Keyboard
 #define PLAYER_DEVICE_JOYSTICK_2 3
 #define PLAYER_DEVICE_JOYSTICK_3 4
 #define PLAYER_DEVICE_JOYSTICK_4 5
+#define PLAYER_DEVICE_TOUCH 6
+
+// Touch controls
+SF_EXTERN unsigned char touch_controls_active;
+SF_EXTERN unsigned char touch_active;
+SF_EXTERN float touch_joystick_dx;
+SF_EXTERN float touch_joystick_dy;
+SF_EXTERN float touch_joystick_center_x;
+SF_EXTERN float touch_joystick_center_y;
+#define MAX_TOUCH_BUTTON   5
+#define TOUCH_BTN_LEFT     0
+#define TOUCH_BTN_RIGHT    1
+#define TOUCH_BTN_SPECIAL1 2
+#define TOUCH_BTN_SPECIAL2 3
+#define TOUCH_BTN_ITEMS    4
+#define TOUCH_JOYSTICK_RADIUS 40.0f
+#define TOUCH_BUTTON_RADIUS 18.0f
+SF_EXTERN float touch_button_x[MAX_TOUCH_BUTTON];
+SF_EXTERN float touch_button_y[MAX_TOUCH_BUTTON];
+SF_EXTERN unsigned char touch_button_down[MAX_TOUCH_BUTTON];
+SF_EXTERN unsigned char touch_button_pressed[MAX_TOUCH_BUTTON];
+SF_EXTERN unsigned char touch_button_unpressed[MAX_TOUCH_BUTTON];
+SF_EXTERN unsigned char touch_mouse_active;
+
 SF_EXTERN unsigned short player_device_button[MAX_LOCAL_PLAYER][MAX_PLAYER_DEVICE_BUTTON];  // Either keyboard scan codes or joystick button numbers...
 #define PLAYER_DEVICE_TYPE -1
 #define PLAYER_DEVICE_BUTTON_LEFT 0
