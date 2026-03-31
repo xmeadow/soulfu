@@ -648,7 +648,7 @@ void input_read(void)
             case SDL_MOUSEMOTION:
                 // Skip fake mouse events generated from touch
                 if(event.motion.which == SDL_TOUCH_MOUSEID) break;
-                if(touch_controls_active && touch_active) break;
+                if(touch_active) break;
                 touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 if(display_full_screen)
@@ -703,7 +703,7 @@ void input_read(void)
                 break;
             case SDL_MOUSEBUTTONUP:
                 if(event.button.which == SDL_TOUCH_MOUSEID) break;
-                if(touch_controls_active && touch_active) break;
+                if(touch_active) break;
                 touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 i = (event.button.button-1);
@@ -718,7 +718,7 @@ void input_read(void)
                 break;
             case SDL_MOUSEBUTTONDOWN:
                 if(event.button.which == SDL_TOUCH_MOUSEID) break;
-                if(touch_controls_active && touch_active) break;
+                if(touch_active) break;
                 touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 i = (event.button.button-1);
@@ -735,7 +735,6 @@ void input_read(void)
                 }
                 break;
             case SDL_FINGERDOWN:
-                if(touch_controls_active)
                 {
                     float fx = event.tfinger.x * virtual_x;
                     float fy = event.tfinger.y * virtual_y;
@@ -756,7 +755,7 @@ void input_read(void)
                     touch_fingers[slot].y = fy;
                     touch_fingers[slot].zone = 0;
 
-                    if(play_game_active)
+                    if(play_game_active && touch_controls_active)
                     {
                         // Left side of screen = joystick zone
                         if(fx < virtual_x * 0.4f && fy > virtual_y * 0.4f)
@@ -808,7 +807,7 @@ void input_read(void)
                     }
                     else
                     {
-                        // Not in gameplay - all touches act as mouse
+                        // Menus or non-touch gameplay - all touches act as mouse
                         touch_fingers[slot].zone = 3;
                         if(touch_mouse_finger == (SDL_FingerID)-1)
                         {
@@ -824,7 +823,6 @@ void input_read(void)
                 }
                 break;
             case SDL_FINGERUP:
-                if(touch_controls_active)
                 {
                     // Find the finger
                     if(event.tfinger.fingerId == touch_joystick_finger)
@@ -894,7 +892,6 @@ void input_read(void)
                 }
                 break;
             case SDL_FINGERMOTION:
-                if(touch_controls_active)
                 {
                     float fx = event.tfinger.x * virtual_x;
                     float fy = event.tfinger.y * virtual_y;
