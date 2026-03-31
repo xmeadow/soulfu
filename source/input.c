@@ -41,6 +41,9 @@ struct touch_finger touch_fingers[MAX_TOUCH_FINGERS];
 SDL_FingerID touch_joystick_finger = -1;         // Finger ID controlling joystick (-1 = none)
 float touch_joystick_origin_x, touch_joystick_origin_y;  // Where joystick finger first touched
 SDL_FingerID touch_mouse_finger = -1;
+float touch_camera_origin_x, touch_camera_origin_y;  // Where camera finger first touched
+float touch_camera_total_move;                         // Total movement distance
+#define TOUCH_TAP_THRESHOLD 5.0f                       // Max movement in virtual coords to count as tap
 
 
 #define MAX_KEY SDL_NUM_SCANCODES                       // The number of keys
@@ -236,7 +239,11 @@ void input_update(void)
         if(mouse_draw && !mouse_down[BUTTON0])
         {
             mouse_pressed[BUTTON0] = TRUE;
-            mouse_down[BUTTON0] = TRUE;
+            // Only hold mouse_down if finger is still on screen
+            if(touch_mouse_finger != (SDL_FingerID)-1)
+            {
+                mouse_down[BUTTON0] = TRUE;
+            }
         }
     }
 
@@ -260,6 +267,15 @@ void input_update(void)
             }
             player_device_inventory_toggle[i] = touch_button_pressed[TOUCH_BTN_ITEMS];
             player_device_inventory_down[i] = touch_button_down[TOUCH_BTN_ITEMS];
+
+            // Camera rotation from touch drag
+            if(touch_camera_dx != 0.0f || touch_camera_dy != 0.0f)
+            {
+                camera_rotation_add_xy[X] += (signed int)(touch_camera_dx * CAMERA_ROTATION_RATE);
+                camera_rotation_add_xy[Y] -= (signed int)(touch_camera_dy * CAMERA_ROTATION_RATE);
+                touch_camera_dx = 0.0f;
+                touch_camera_dy = 0.0f;
+            }
         }
         else if(player_device_type[i] > 1)
         {
@@ -456,6 +472,9 @@ void input_setup(void)
     touch_mouse_active = FALSE;
     touch_tap_pending = FALSE;
     touch_input_mode = 0;
+    touch_camera_finger = -1;
+    touch_camera_dx = 0.0f;
+    touch_camera_dy = 0.0f;
     repeat(i, MAX_TOUCH_BUTTON)
     {
         touch_button_down[i] = FALSE;
@@ -627,6 +646,9 @@ void input_read(void)
                 }
                 break;
             case SDL_MOUSEMOTION:
+                // Skip fake mouse events generated from touch
+                if(event.motion.which == SDL_TOUCH_MOUSEID) break;
+                if(touch_controls_active && touch_active) break;
                 touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 if(display_full_screen)
@@ -680,6 +702,9 @@ void input_read(void)
                 }
                 break;
             case SDL_MOUSEBUTTONUP:
+                if(event.button.which == SDL_TOUCH_MOUSEID) break;
+                if(touch_controls_active && touch_active) break;
+                touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 i = (event.button.button-1);
                 if(i < MAX_MOUSE_BUTTON)
@@ -692,6 +717,9 @@ void input_read(void)
                 }
                 break;
             case SDL_MOUSEBUTTONDOWN:
+                if(event.button.which == SDL_TOUCH_MOUSEID) break;
+                if(touch_controls_active && touch_active) break;
+                touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 i = (event.button.button-1);
                 if(i < MAX_MOUSE_BUTTON)
@@ -763,19 +791,18 @@ void input_read(void)
                                 }
                             }
                         }
-                        // Middle/top area = mouse emulation for menus
+                        // Middle/top area = camera rotation or UI tap
                         else
                         {
-                            touch_fingers[slot].zone = 3;
-                            if(touch_mouse_finger == (SDL_FingerID)-1)
+                            touch_fingers[slot].zone = 4;
+                            if(touch_camera_finger == (SDL_FingerID)-1)
                             {
-                                touch_mouse_finger = event.tfinger.fingerId;
-                                touch_mouse_active = TRUE;
-                                mouse_x = fx;
-                                mouse_y = fy;
-                                mouse_idle_timer = 0;
-                                // Defer click to next frame so mouse_last_object can update
-                                touch_tap_pending = TRUE;
+                                touch_camera_finger = event.tfinger.fingerId;
+                                touch_camera_dx = 0.0f;
+                                touch_camera_dy = 0.0f;
+                                touch_camera_origin_x = fx;
+                                touch_camera_origin_y = fy;
+                                touch_camera_total_move = 0.0f;
                             }
                         }
                     }
@@ -810,11 +837,30 @@ void input_read(void)
                     {
                         touch_mouse_finger = -1;
                         touch_mouse_active = FALSE;
-                        if(mouse_down[BUTTON0])
+                        if(touch_tap_pending)
+                        {
+                            // Finger lifted before deferred tap fired - leave pending,
+                            // it will fire as a single-frame click (no mouse_down)
+                        }
+                        else if(mouse_down[BUTTON0])
                         {
                             mouse_unpressed[BUTTON0] = TRUE;
                             mouse_down[BUTTON0] = FALSE;
                         }
+                    }
+                    if(event.tfinger.fingerId == touch_camera_finger)
+                    {
+                        // If barely moved, treat as a UI tap
+                        if(touch_camera_total_move <= TOUCH_TAP_THRESHOLD)
+                        {
+                            mouse_x = touch_camera_origin_x;
+                            mouse_y = touch_camera_origin_y;
+                            mouse_idle_timer = 0;
+                            touch_tap_pending = TRUE;
+                        }
+                        touch_camera_finger = -1;
+                        touch_camera_dx = 0.0f;
+                        touch_camera_dy = 0.0f;
                     }
                     // Release any buttons this finger was pressing
                     repeat(j, MAX_TOUCH_FINGERS)
@@ -891,6 +937,18 @@ void input_read(void)
                         mouse_x = fx;
                         mouse_y = fy;
                         mouse_idle_timer = 0;
+                    }
+                    else if(event.tfinger.fingerId == touch_camera_finger)
+                    {
+                        float cdx = event.tfinger.dx * virtual_x;
+                        float cdy = event.tfinger.dy * virtual_y;
+                        touch_camera_total_move += (float)sqrt(cdx*cdx + cdy*cdy);
+                        // Only rotate camera if finger has moved enough (not a tap)
+                        if(touch_camera_total_move > TOUCH_TAP_THRESHOLD)
+                        {
+                            touch_camera_dx = cdx;
+                            touch_camera_dy = cdy;
+                        }
                     }
                 }
                 break;
@@ -1141,7 +1199,7 @@ void input_camera_controls(void)
 
 
 
-    if(play_game_active)
+    if(play_game_active && !(touch_controls_active && touch_input_mode))
     {
         // Make sure the mouse isn't over a window...
         if(mouse_last_object == NULL)
