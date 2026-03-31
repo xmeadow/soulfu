@@ -213,6 +213,7 @@ void input_update(void)
     mouse_current_item = NO_ITEM;
     mouse_last_x = mouse_x;
     mouse_last_y = mouse_y;
+
     if(mouse_character_distance > 999999.0f)
     {
         i = mouse_text_timer;
@@ -225,6 +226,18 @@ void input_update(void)
     {
         mouse_pressed[i] = 0;
         mouse_unpressed[i] = 0;
+    }
+
+    // Fire deferred touch tap AFTER clearing pressed flags -
+    // cursor was positioned last frame, so mouse_last_object is now correct
+    if(touch_tap_pending)
+    {
+        touch_tap_pending = FALSE;
+        if(mouse_draw && !mouse_down[BUTTON0])
+        {
+            mouse_pressed[BUTTON0] = TRUE;
+            mouse_down[BUTTON0] = TRUE;
+        }
     }
 
 
@@ -429,6 +442,7 @@ void input_setup(void)
 
 
     // Setup touch input
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     repeat(i, MAX_TOUCH_FINGERS)
     {
         touch_fingers[i].active = FALSE;
@@ -440,6 +454,8 @@ void input_setup(void)
     touch_joystick_dy = 0.0f;
     touch_mouse_finger = -1;
     touch_mouse_active = FALSE;
+    touch_tap_pending = FALSE;
+    touch_input_mode = 0;
     repeat(i, MAX_TOUCH_BUTTON)
     {
         touch_button_down[i] = FALSE;
@@ -552,6 +568,7 @@ void input_read(void)
         switch(event.type)
         {
             case SDL_KEYDOWN:
+                touch_input_mode = 0;
                 key = (unsigned short) event.key.keysym.scancode;
                 if(key < MAX_KEY)
                 {
@@ -610,6 +627,7 @@ void input_read(void)
                 }
                 break;
             case SDL_MOUSEMOTION:
+                touch_input_mode = 0;
                 mouse_idle_timer = 0;
                 if(display_full_screen)
                 {
@@ -694,6 +712,7 @@ void input_read(void)
                     float fx = event.tfinger.x * virtual_x;
                     float fy = event.tfinger.y * virtual_y;
                     touch_active = TRUE;
+                    touch_input_mode = 1;
 
                     // Find a free finger slot
                     int slot = -1;
@@ -755,11 +774,8 @@ void input_read(void)
                                 mouse_x = fx;
                                 mouse_y = fy;
                                 mouse_idle_timer = 0;
-                                if(mouse_draw && !mouse_down[BUTTON0])
-                                {
-                                    mouse_pressed[BUTTON0] = TRUE;
-                                    mouse_down[BUTTON0] = TRUE;
-                                }
+                                // Defer click to next frame so mouse_last_object can update
+                                touch_tap_pending = TRUE;
                             }
                         }
                     }
@@ -774,11 +790,8 @@ void input_read(void)
                             mouse_x = fx;
                             mouse_y = fy;
                             mouse_idle_timer = 0;
-                            if(mouse_draw && !mouse_down[BUTTON0])
-                            {
-                                mouse_pressed[BUTTON0] = TRUE;
-                                mouse_down[BUTTON0] = TRUE;
-                            }
+                            // Defer click to next frame so mouse_last_object can update
+                            touch_tap_pending = TRUE;
                         }
                     }
                 }
@@ -1037,6 +1050,7 @@ void input_read(void)
                 quitgame = TRUE;
                 break;
             case SDL_MOUSEMOTION:
+                touch_input_mode = 0;
                 if(display_full_screen)
                 {
                     mouse_x += event.motion.xrel * 0.625f;

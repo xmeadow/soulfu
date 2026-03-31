@@ -455,7 +455,7 @@ if(map_room_data[map_current_room][13] & MAP_ROOM_FLAG_OUTSIDE) {
     }
     color_temp[0] = 255;  color_temp[1] = 255;  color_temp[2] = 255;  color_temp[3] = mouse_alpha;
     display_color_alpha(color_temp);
-    if(mouse_draw && !(touch_controls_active && play_game_active && !touch_mouse_active))
+    if(mouse_draw && !(touch_input_mode && touch_controls_active && !touch_mouse_active))
     {
       x = mouse_x;
       y = mouse_y;
@@ -1177,6 +1177,8 @@ unsigned char touch_button_down[MAX_TOUCH_BUTTON];
 unsigned char touch_button_pressed[MAX_TOUCH_BUTTON];
 unsigned char touch_button_unpressed[MAX_TOUCH_BUTTON];
 unsigned char touch_mouse_active = FALSE;
+unsigned char touch_tap_pending = FALSE;
+unsigned char touch_input_mode = 0;
 unsigned short screen_sizes_xy[MAX_SCREEN_SIZES][2] =
 {
   {320, 200},
