@@ -135,6 +135,8 @@ SF_EXTERN unsigned char touch_button_down[MAX_TOUCH_BUTTON];
 SF_EXTERN unsigned char touch_button_pressed[MAX_TOUCH_BUTTON];
 SF_EXTERN unsigned char touch_button_unpressed[MAX_TOUCH_BUTTON];
 SF_EXTERN unsigned char touch_mouse_active;
+SF_EXTERN unsigned char touch_tap_pending;
+SF_EXTERN unsigned char touch_input_mode;  // 0=mouse/keyboard, 1=touch
 
 SF_EXTERN unsigned short player_device_button[MAX_LOCAL_PLAYER][MAX_PLAYER_DEVICE_BUTTON];  // Either keyboard scan codes or joystick button numbers...
 #define PLAYER_DEVICE_TYPE -1
