@@ -33,11 +33,19 @@ void log_message(char *format, ...)
     va_list ap;
     char log_buffer[256];
 
+    va_start(ap, format);
+    vsprintf(log_buffer, format, ap);
+    va_end(ap);
+
+#ifdef __ANDROID__
+    // Always log to logcat on Android
+    __android_log_print(
+        (log_buffer[0] == 'E' || log_buffer[0] == 'F') ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO,
+        "SoulFu", "%s", log_buffer);
+#endif
+
     if(logfile)
     {
-        va_start(ap, format);
-        vsprintf(log_buffer, format, ap);
-        va_end(ap);
         fprintf(logfile, "%s\n", log_buffer);
         fflush(logfile);
 
@@ -77,7 +85,18 @@ signed char open_logfile(void)
     // <ZZ> This function opens up the LOGFILE.TXT file and registers close_logfile() to run
     //      on program termination.  It returns TRUE if it worked okay, FALSE if there was a
     //      problem.
+#ifdef __ANDROID__
+    {
+        const char *internal = SDL_AndroidGetInternalStoragePath();
+        if(internal) {
+            char logpath[1024];
+            snprintf(logpath, sizeof(logpath), "%s/LOGFILE.TXT", internal);
+            logfile = fopen(logpath, "w");
+        }
+    }
+#else
     logfile = fopen("LOGFILE.TXT", "w");
+#endif
     log_error_count = 0;
     if(logfile)
     {
