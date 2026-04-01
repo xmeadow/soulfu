@@ -137,6 +137,9 @@ unsigned int texture_automap_stair = 0;
 unsigned int texture_automap_town  = 0;
 unsigned int texture_automap_boss  = 0;
 unsigned int texture_automap_virtue  = 0;
+unsigned int texture_touch_button = 0;
+unsigned int texture_touch_frame  = 0;
+unsigned int texture_touch_items  = 0;
 
 // !!!BAD!!!
 // !!!BAD!!!
@@ -1970,6 +1973,9 @@ signed char display_load_texture(unsigned char* index)
     if(strcmp(filename, "=AMTOWN") == 0)  texture_automap_town  = *((unsigned int*) (data+2));
     if(strcmp(filename, "=AMBOSS") == 0)  texture_automap_boss  = *((unsigned int*) (data+2));
     if(strcmp(filename, "=AMVIRTU") == 0) texture_automap_virtue  = *((unsigned int*) (data+2));
+    if(strcmp(filename, "=RBUTTON") == 0) texture_touch_button = *((unsigned int*) (data+2));
+    if(strcmp(filename, "=RFRAME") == 0)  texture_touch_frame  = *((unsigned int*) (data+2));
+    if(strcmp(filename, "=BACKPAC") == 0) texture_touch_items  = *((unsigned int*) (data+2));
 
 // !!!BAD!!!
 // !!!BAD!!!
@@ -2809,12 +2815,12 @@ void display_touch_overlay(void)
     unsigned char color[4];
     float jx, jy, jr;
     float bx, by;
+    float s;
     int i;
 
     if(!touch_controls_active) return;
     if(!play_game_active) return;
 
-    display_texture_off();
     display_zbuffer_off();
     display_blend_trans();
 
@@ -2825,15 +2831,19 @@ void display_touch_overlay(void)
     touch_joystick_center_x = jx;
     touch_joystick_center_y = jy;
 
-    // Outer ring (semi-transparent)
-    color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 50;
+    // Draw joystick frame background
+    color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 120;
     display_color_alpha(color);
-    display_touch_circle(jx, jy, jr, TRUE);
-
-    // Outer ring border
-    color[3] = 100;
-    display_color_alpha(color);
-    display_touch_circle(jx, jy, jr, FALSE);
+    if(texture_touch_frame)
+    {
+        display_texture_on();
+        display_image(jx - jr, jy - jr, jx + jr, jy + jr, texture_touch_frame);
+    }
+    else
+    {
+        display_texture_off();
+        display_touch_circle(jx, jy, jr, TRUE);
+    }
 
     // Inner knob (shows current joystick position)
     {
@@ -2841,20 +2851,22 @@ void display_touch_overlay(void)
         float knob_y = jy + touch_joystick_dy * jr * 0.8f;
         float knob_r = jr * 0.35f;
 
-        color[0] = 220; color[1] = 220; color[2] = 220; color[3] = 140;
+        color[0] = 220; color[1] = 220; color[2] = 220; color[3] = 180;
         display_color_alpha(color);
-        display_touch_circle(knob_x, knob_y, knob_r, TRUE);
-
-        color[3] = 200;
-        display_color_alpha(color);
-        display_touch_circle(knob_x, knob_y, knob_r, FALSE);
+        if(texture_touch_button)
+        {
+            display_texture_on();
+            display_image(knob_x - knob_r, knob_y - knob_r, knob_x + knob_r, knob_y + knob_r, texture_touch_button);
+        }
+        else
+        {
+            display_texture_off();
+            display_touch_circle(knob_x, knob_y, knob_r, TRUE);
+        }
     }
 
 
     // --- Action Buttons (bottom-right, diamond layout) ---
-    // Layout:     Sp2
-    //          Left  Right
-    //             Sp1
     bx = virtual_x - 60.0f;
     by = virtual_y - 60.0f;
     float btn_spacing = 24.0f;
@@ -2869,70 +2881,41 @@ void display_touch_overlay(void)
     touch_button_y[TOUCH_BTN_SPECIAL1] = by + btn_spacing;
     touch_button_x[TOUCH_BTN_SPECIAL2] = bx;
     touch_button_y[TOUCH_BTN_SPECIAL2] = by - btn_spacing;
-    // Items button - top right area
     touch_button_x[TOUCH_BTN_ITEMS]    = virtual_x - 25.0f;
     touch_button_y[TOUCH_BTN_ITEMS]    = virtual_y * 0.4f;
 
-    // Draw each button
+    // Draw action buttons with texture
     for(i = 0; i < MAX_TOUCH_BUTTON; i++)
     {
-        float cr = (i == TOUCH_BTN_ITEMS) ? btn_r * 0.8f : btn_r;
+        s = (i == TOUCH_BTN_ITEMS) ? btn_r * 0.8f : btn_r;
 
-        // Button fill
         if(touch_button_down[i])
         {
-            color[0] = 255; color[1] = 200; color[2] = 100; color[3] = 160;
+            color[0] = 255; color[1] = 200; color[2] = 100; color[3] = 220;
         }
         else
         {
-            color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 60;
+            color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 120;
         }
         display_color_alpha(color);
-        display_touch_circle(touch_button_x[i], touch_button_y[i], cr, TRUE);
 
-        // Button border
-        color[3] = touch_button_down[i] ? 220 : 120;
-        display_color_alpha(color);
-        display_touch_circle(touch_button_x[i], touch_button_y[i], cr, FALSE);
+        if(i == TOUCH_BTN_ITEMS && texture_touch_items)
+        {
+            display_texture_on();
+            display_image(touch_button_x[i] - s, touch_button_y[i] - s, touch_button_x[i] + s, touch_button_y[i] + s, texture_touch_items);
+        }
+        else if(texture_touch_button)
+        {
+            display_texture_on();
+            display_image(touch_button_x[i] - s, touch_button_y[i] - s, touch_button_x[i] + s, touch_button_y[i] + s, texture_touch_button);
+        }
+        else
+        {
+            display_texture_off();
+            display_touch_circle(touch_button_x[i], touch_button_y[i], s, TRUE);
+        }
     }
 
-    // Draw button labels using simple lines
-    display_line_size(2);
-
-    // Left button: "<" arrow
-    color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 180;
-    display_color_alpha(color);
-    bx = touch_button_x[TOUCH_BTN_LEFT]; by = touch_button_y[TOUCH_BTN_LEFT];
-    display_start_line(); display_vertex_xy(bx+5, by-6); display_vertex_xy(bx-5, by); display_end();
-    display_start_line(); display_vertex_xy(bx-5, by); display_vertex_xy(bx+5, by+6); display_end();
-
-    // Right button: ">" arrow
-    bx = touch_button_x[TOUCH_BTN_RIGHT]; by = touch_button_y[TOUCH_BTN_RIGHT];
-    display_start_line(); display_vertex_xy(bx-5, by-6); display_vertex_xy(bx+5, by); display_end();
-    display_start_line(); display_vertex_xy(bx+5, by); display_vertex_xy(bx-5, by+6); display_end();
-
-    // Special1 button: "1" (two lines)
-    bx = touch_button_x[TOUCH_BTN_SPECIAL1]; by = touch_button_y[TOUCH_BTN_SPECIAL1];
-    display_start_line(); display_vertex_xy(bx-2, by-5); display_vertex_xy(bx, by-7); display_end();
-    display_start_line(); display_vertex_xy(bx, by-7); display_vertex_xy(bx, by+5); display_end();
-
-    // Special2 button: "2" (approx)
-    bx = touch_button_x[TOUCH_BTN_SPECIAL2]; by = touch_button_y[TOUCH_BTN_SPECIAL2];
-    display_start_line(); display_vertex_xy(bx-4, by-5); display_vertex_xy(bx+4, by-5); display_end();
-    display_start_line(); display_vertex_xy(bx+4, by-5); display_vertex_xy(bx-4, by+5); display_end();
-    display_start_line(); display_vertex_xy(bx-4, by+5); display_vertex_xy(bx+4, by+5); display_end();
-
-    // Items button: bag icon (small rectangle)
-    bx = touch_button_x[TOUCH_BTN_ITEMS]; by = touch_button_y[TOUCH_BTN_ITEMS];
-    display_start_line(); display_vertex_xy(bx-5, by-4); display_vertex_xy(bx+5, by-4); display_end();
-    display_start_line(); display_vertex_xy(bx+5, by-4); display_vertex_xy(bx+5, by+6); display_end();
-    display_start_line(); display_vertex_xy(bx+5, by+6); display_vertex_xy(bx-5, by+6); display_end();
-    display_start_line(); display_vertex_xy(bx-5, by+6); display_vertex_xy(bx-5, by-4); display_end();
-    display_start_line(); display_vertex_xy(bx-3, by-4); display_vertex_xy(bx-3, by-7); display_end();
-    display_start_line(); display_vertex_xy(bx-3, by-7); display_vertex_xy(bx+3, by-7); display_end();
-    display_start_line(); display_vertex_xy(bx+3, by-7); display_vertex_xy(bx+3, by-4); display_end();
-
-    display_line_size(1);
     display_blend_off();
     display_zbuffer_on();
     display_texture_on();
