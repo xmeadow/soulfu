@@ -1,0 +1,26 @@
+# Cloned dependencies (setup_deps.sh downloads these)
+SDL2/
+gl4es/
+libjpeg-turbo/
+libogg/
+libvorbis/
+
+# Gradle build artifacts
+.gradle/
+build/
+app/build/
+app/.cxx/
+local.properties
+
+# gl4es drops its output here during build
+app/jni/lib/
+
+# Copied SDL2 Java sources
+app/src/main/java/org/libsdl/
+
+# Symlinked asset
+app/src/main/assets/datafile.sdf
+
+# IDE files
+.idea/
+*.iml

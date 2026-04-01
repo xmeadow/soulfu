@@ -19,7 +19,17 @@
 
 // Stuff for SDL
 #include <SDL2/SDL.h>
+
+#ifdef __ANDROID__
+#include <GL/gl.h>      // gl4es provides this — full OpenGL 1.x API over GLES2
+#include <SDL2/SDL_system.h>
+#include <android/log.h>
+#define LOG_TAG "SoulFu"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
 #include <SDL2/SDL_opengl.h>
+#endif
 // SDL2_net not available on all systems; stub it out for now
 // #include <SDL2/SDL_net.h>
 #ifndef _SDL_NET_H
@@ -646,6 +656,16 @@ char* get_path_from_home(const char *filename)
   static char path[1024];
   path[0] = '\0';
 
+#ifdef __ANDROID__
+  // On Android, use SDL's internal storage path
+  const char *home = SDL_AndroidGetInternalStoragePath();
+  if(home && filename)
+  {
+    snprintf(path, sizeof(path)-1, "%s/%s", home, filename);
+    return path;
+  }
+  return NULL;
+#else
   // Try HOME first, then XDG_CONFIG_HOME on Linux, then USERPROFILE on Windows
   char *home = getenv("HOME");
 #ifndef _WIN32
@@ -693,9 +713,73 @@ char* get_path_from_home(const char *filename)
     return path;
   }
   return NULL;
+#endif // __ANDROID__
 }
 
 //-----------------------------------------------------------------------------------------------
+#ifdef __ANDROID__
+// Extract an asset from the APK to internal storage if it doesn't exist yet
+// (or if APK is newer than the extracted file)
+static int android_extract_asset(const char *asset_name)
+{
+    const char *internal = SDL_AndroidGetInternalStoragePath();
+    char dest[1024];
+    FILE *out;
+    SDL_RWops *rw;
+    Sint64 size;
+    unsigned char *buf;
+
+    if(!internal) return 0;
+    snprintf(dest, sizeof(dest), "%s/%s", internal, asset_name);
+
+    // Check if already extracted
+    out = fopen(dest, "rb");
+    if(out) { fclose(out); return 1; }
+
+    LOGI("Extracting %s from APK assets...", asset_name);
+    rw = SDL_RWFromFile(asset_name, "rb");
+    if(!rw) {
+        LOGE("Could not open asset %s: %s", asset_name, SDL_GetError());
+        return 0;
+    }
+
+    size = SDL_RWsize(rw);
+    if(size <= 0) {
+        LOGE("Asset %s has invalid size", asset_name);
+        SDL_RWclose(rw);
+        return 0;
+    }
+
+    buf = (unsigned char*)malloc(size);
+    if(!buf) {
+        LOGE("Out of memory extracting %s (%lld bytes)", asset_name, (long long)size);
+        SDL_RWclose(rw);
+        return 0;
+    }
+
+    if(SDL_RWread(rw, buf, 1, size) != (size_t)size) {
+        LOGE("Failed to read asset %s", asset_name);
+        free(buf);
+        SDL_RWclose(rw);
+        return 0;
+    }
+    SDL_RWclose(rw);
+
+    out = fopen(dest, "wb");
+    if(!out) {
+        LOGE("Could not write to %s", dest);
+        free(buf);
+        return 0;
+    }
+    fwrite(buf, 1, size, out);
+    fclose(out);
+    free(buf);
+
+    LOGI("Extracted %s (%lld bytes)", asset_name, (long long)size);
+    return 1;
+}
+#endif
+
 #ifdef __MINGW32__
 #undef main
 #endif
@@ -714,13 +798,39 @@ int main(int argc, char *argv[])
   char config_loaded = FALSE;
 
 
+#ifdef __ANDROID__
+  // On Android, SDL is already partially initialized by SDLActivity JNI,
+  // but ensure minimal init for path queries
+  SDL_Init(0);
+#endif
+
   open_logfile();
   log_message("INFO:   ------------------------------------------");
   if(!get_mainbuffer()) { log_message("ERROR:  get_mainbuffer() failed");  exit(1); }
+
+#ifdef __ANDROID__
+  {
+    // Extract datafile.sdf from APK assets to internal storage
+    // so the standard fopen-based sdf_load can read it.
+    if(!android_extract_asset("datafile.sdf")) {
+      LOGE("Failed to extract datafile.sdf from APK");
+      log_message("ERROR:  Failed to extract datafile.sdf from APK");
+      exit(1);
+    }
+    const char *internal = SDL_AndroidGetInternalStoragePath();
+    char sdf_path[1024];
+    snprintf(sdf_path, sizeof(sdf_path), "%s/datafile.sdf", internal);
+    if(!sdf_load(sdf_path)) {
+      log_message("ERROR:  sdf_load() failed");
+      exit(1);
+    }
+  }
+#else
   if(!sdf_load(SDF_PATH)) {
     log_message("ERROR:  sdf_load() failed");
     exit(1);
   }
+#endif
 
 
   // !!!BAD!!!

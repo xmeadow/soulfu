@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Allow internet for future networking -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Gamepad/controller support -->
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:label="SoulFu"
+        android:icon="@mipmap/ic_launcher"
+        android:hasCode="true"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+
+        <activity
+            android:name=".SoulFuActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+            android:screenOrientation="landscape"
+            android:hardwareAccelerated="true"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Let SDL know this is the main activity -->
+            <meta-data android:name="SDL_ENV.SDL_MAIN_ENTRY_POINT" android:value="main" />
+        </activity>
+    </application>
+</manifest>

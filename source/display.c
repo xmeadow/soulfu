@@ -2155,8 +2155,15 @@ signed char display_setup(unsigned short size_x, unsigned short size_y, unsigned
 
     flags = SDL_WINDOW_OPENGL;
     display_full_screen = full_screen; // remember global value...
+#ifdef __ANDROID__
+    // Android is always fullscreen
+    flags |= SDL_WINDOW_FULLSCREEN;
+    display_full_screen = TRUE;
+    log_message("INFO:   Android fullscreen mode");
+#else
     if(full_screen) { flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;  log_message("INFO:   Requested fullscreen desktop mode..."); }
     else { flags |= SDL_WINDOW_RESIZABLE; }
+#endif
 
     main_window = SDL_CreateWindow("SoulFu", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         size_x, size_y, flags);
