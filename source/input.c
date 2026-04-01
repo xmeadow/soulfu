@@ -757,6 +757,21 @@ void input_read(void)
 
                     if(play_game_active && touch_controls_active)
                     {
+                        // ESC button check (top-right area)
+                        {
+                            float dx = fx - touch_button_x[TOUCH_BTN_ESC];
+                            float dy = fy - touch_button_y[TOUCH_BTN_ESC];
+                            if(dx*dx + dy*dy < TOUCH_BUTTON_RADIUS * TOUCH_BUTTON_RADIUS * 2.0f)
+                            {
+                                touch_fingers[slot].zone = 2;
+                                if(!touch_button_down[TOUCH_BTN_ESC])
+                                {
+                                    touch_button_pressed[TOUCH_BTN_ESC] = TRUE;
+                                }
+                                touch_button_down[TOUCH_BTN_ESC] = TRUE;
+                                break;
+                            }
+                        }
                         // Left side of screen = joystick zone
                         if(fx < virtual_x * 0.4f && fy > virtual_y * 0.4f)
                         {
@@ -1014,6 +1029,19 @@ void input_read(void)
                 mouse_down[i] = button_down;
             }
         }
+    }
+
+    // Inject ESC key from touch button (must happen in input_read so window_key_pressed survives)
+    if(touch_button_pressed[TOUCH_BTN_ESC])
+    {
+        key_pressed[SDL_SCANCODE_ESCAPE] = TRUE;
+        window_key_pressed[SDL_SCANCODE_ESCAPE] = TRUE;
+        key_down[SDL_SCANCODE_ESCAPE] = TRUE;
+    }
+    if(touch_button_unpressed[TOUCH_BTN_ESC])
+    {
+        key_down[SDL_SCANCODE_ESCAPE] = FALSE;
+        key_unpressed[SDL_SCANCODE_ESCAPE] = TRUE;
     }
 }
 

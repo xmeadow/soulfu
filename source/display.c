@@ -140,6 +140,7 @@ unsigned int texture_automap_virtue  = 0;
 unsigned int texture_touch_button = 0;
 unsigned int texture_touch_frame  = 0;
 unsigned int texture_touch_items  = 0;
+unsigned int texture_touch_esc    = 0;
 
 // !!!BAD!!!
 // !!!BAD!!!
@@ -207,7 +208,7 @@ float global_depth_min = 0.066f;
 #define display_start_fan()             { glBegin(GL_TRIANGLE_FAN); }
 #define display_start_points()          { glBegin(GL_POINTS); }
 #define display_color(PTR)              { glColor3ubv(PTR); }
-#define display_texpos(PTR)             { glTexCoord2fv(PTR); } 
+#define display_texpos(PTR)             { glTexCoord2fv(PTR); }
 #define display_vertex(PTR)             { glVertex3fv(PTR); }
 #define display_point(PTR)              { glVertex2fv(PTR); }
 #define display_perspective_off()       { glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST); }
@@ -702,7 +703,7 @@ void display_window(float x, float y, float w, float h, float scale, unsigned sh
 
 
 
-    // Now draw the trim... 
+    // Now draw the trim...
     if(side_mask & 15)
     {
         display_pick_texture(texture_wintrim);
@@ -897,7 +898,7 @@ void display_2d_marker(unsigned char* color, float x, float y, float scale)
 #ifdef DEVTOOL
 void display_solid_marker(unsigned char* color, float x, float y, float z, float scale)
 {
-    display_color(color);  
+    display_color(color);
     display_start_fan();
         display_vertex_xyz(x, y, z-scale);
         display_vertex_xyz(x, y-scale, z);
@@ -1147,7 +1148,7 @@ void display_book_page(unsigned char* page_start, float x_start, float y_start, 
                         y_right_down = y_right+scale;
                         if(*page != ' ')
                         {
-                            display_book_font(*page, x, y, x_right, y_right, scale); 
+                            display_book_font(*page, x, y, x_right, y_right, scale);
                         }
                         y=y_down;
                         y_right=y_right_down;
@@ -1168,7 +1169,7 @@ void display_book_page(unsigned char* page_start, float x_start, float y_start, 
                         y_right_down = y_right+scale;
                         if(*page != ' ')
                         {
-                            display_book_font(*page, x_right, y_right, x, y, scale); 
+                            display_book_font(*page, x_right, y_right, x, y, scale);
                         }
                         y=y_down;
                         y_right=y_right_down;
@@ -1976,6 +1977,7 @@ signed char display_load_texture(unsigned char* index)
     if(strcmp(filename, "=RBUTTON") == 0) texture_touch_button = *((unsigned int*) (data+2));
     if(strcmp(filename, "=RFRAME") == 0)  texture_touch_frame  = *((unsigned int*) (data+2));
     if(strcmp(filename, "=BACKPAC") == 0) texture_touch_items  = *((unsigned int*) (data+2));
+    if(strcmp(filename, "MBUTTON") == 0)  texture_touch_esc    = *((unsigned int*) (data+2));
 
 // !!!BAD!!!
 // !!!BAD!!!
@@ -2824,6 +2826,30 @@ void display_touch_overlay(void)
     display_zbuffer_off();
     display_blend_trans();
 
+    // --- ESC button (top-right, next to minimap) ---
+    // Only draw when touch controls are active (already gated above)
+    {
+        float ex = virtual_x - 50.0f;
+        float ey = 18.0f;
+        float es = 14.0f;
+        touch_button_x[TOUCH_BTN_ESC] = ex;
+        touch_button_y[TOUCH_BTN_ESC] = ey;
+
+        color[0] = 255; color[1] = 255; color[2] = 255;
+        color[3] = touch_button_down[TOUCH_BTN_ESC] ? 220 : 180;
+        display_color_alpha(color);
+        if(texture_touch_esc)
+        {
+            display_texture_on();
+            display_image(ex - es, ey - es, ex + es, ey + es, texture_touch_esc);
+        }
+        else
+        {
+            display_texture_off();
+            display_touch_circle(ex, ey, es, TRUE);
+        }
+    }
+
     // --- Virtual Joystick (bottom-left) ---
     jx = 60.0f;
     jy = virtual_y - 60.0f;
@@ -2832,7 +2858,7 @@ void display_touch_overlay(void)
     touch_joystick_center_y = jy;
 
     // Draw joystick frame background
-    color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 120;
+    color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 255;
     display_color_alpha(color);
     if(texture_touch_frame)
     {
@@ -2851,7 +2877,7 @@ void display_touch_overlay(void)
         float knob_y = jy + touch_joystick_dy * jr * 0.8f;
         float knob_r = jr * 0.35f;
 
-        color[0] = 220; color[1] = 220; color[2] = 220; color[3] = 180;
+        color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 255;
         display_color_alpha(color);
         if(texture_touch_button)
         {
@@ -2885,17 +2911,17 @@ void display_touch_overlay(void)
     touch_button_y[TOUCH_BTN_ITEMS]    = virtual_y * 0.4f;
 
     // Draw action buttons with texture
-    for(i = 0; i < MAX_TOUCH_BUTTON; i++)
+    for(i = 0; i < TOUCH_BTN_ESC; i++)
     {
         s = (i == TOUCH_BTN_ITEMS) ? btn_r * 0.8f : btn_r;
 
         if(touch_button_down[i])
         {
-            color[0] = 255; color[1] = 200; color[2] = 100; color[3] = 220;
+            color[0] = 255; color[1] = 200; color[2] = 100; color[3] = 255;
         }
         else
         {
-            color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 120;
+            color[0] = 255; color[1] = 255; color[2] = 255; color[3] = 255;
         }
         display_color_alpha(color);
 
