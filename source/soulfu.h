@@ -121,12 +121,13 @@ SF_EXTERN float touch_joystick_dx;
 SF_EXTERN float touch_joystick_dy;
 SF_EXTERN float touch_joystick_center_x;
 SF_EXTERN float touch_joystick_center_y;
-#define MAX_TOUCH_BUTTON   5
+#define MAX_TOUCH_BUTTON   6
 #define TOUCH_BTN_LEFT     0
 #define TOUCH_BTN_RIGHT    1
 #define TOUCH_BTN_SPECIAL1 2
 #define TOUCH_BTN_SPECIAL2 3
 #define TOUCH_BTN_ITEMS    4
+#define TOUCH_BTN_ESC      5
 #define TOUCH_JOYSTICK_RADIUS 40.0f
 #define TOUCH_BUTTON_RADIUS 18.0f
 SF_EXTERN float touch_button_x[MAX_TOUCH_BUTTON];
