@@ -921,6 +921,10 @@ int main(int argc, char *argv[])
     mip_map_active = (*(config+98));
     fast_and_ugly_active = (*(config+101));
     touch_controls_active = (*(config+102));
+#ifdef __ANDROID__
+    // On Android, always allow touch controls to be selected
+    touch_controls_active = TRUE;
+#endif
     log_message("INFO:   Config file read okay...");
 
     // Auto-detect resolution only for fresh/default config (screen_size 0 = 320x200)

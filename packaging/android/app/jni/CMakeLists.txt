@@ -38,7 +38,11 @@ set(GLX_STUBS ON CACHE BOOL "" FORCE)
 # STATICLIB=ON builds gl4es as a static library, avoiding the .so.1 versioned
 # name issue on Android. GL symbols are baked directly into libsoulfu.so.
 set(STATICLIB ON CACHE BOOL "" FORCE)
+# Override gl4es's CMAKE_ARCHIVE_OUTPUT_DIRECTORY (defaults to CMAKE_SOURCE_DIR/lib
+# which dumps a host-arch libGL.a into jni/lib/ — wrong arch for Android cross-compile)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gl4es" CACHE PATH "" FORCE)
 add_subdirectory("${GL4ES_SOURCE}" "${CMAKE_CURRENT_BINARY_DIR}/gl4es" EXCLUDE_FROM_ALL)
+unset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY CACHE)
 set(STATICLIB OFF CACHE BOOL "" FORCE)
 
 # ============================================================

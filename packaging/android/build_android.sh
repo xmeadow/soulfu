@@ -14,9 +14,10 @@ fi
 PACKAGE_NAME="soulfu"
 ANDROID_DIR="packaging/android"
 
-# Check required files exist
+# Rebuild datafile.sdf (compiles scripts, language files, and packs datadir/)
+make data
 if [ ! -f "datafile.sdf" ]; then
-    echo "Error: datafile.sdf not found. Build it first with: make data"
+    echo "Error: datafile.sdf not found. 'make data' failed."
     exit 1
 fi
 
