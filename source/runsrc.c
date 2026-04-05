@@ -3286,7 +3286,11 @@ sprintf(DEBUG_STRING, "Autotrim length == %f", autotrim_length);
                         fullpath = get_path_from_home(file);
                         if (!fullpath) fullpath = file;
                         savefile = fopen(fullpath, "wb");
-                        savelog = fopen("SAVELOG.TXT", "w");
+                        {
+                            char *savelog_path = get_path_from_home("SAVELOG.TXT");
+                            savelog = fopen(savelog_path ? savelog_path : "SAVELOG.TXT", "w");
+                            if(!savelog) savelog = fopen("/dev/null", "w");
+                        }
                         if(savefile)
                         {
                             fprintf(savelog,"\n\n------------\n");
@@ -3464,7 +3468,11 @@ sprintf(DEBUG_STRING, "Autotrim length == %f", autotrim_length);
                         fullpath = get_path_from_home(file);
                         if (!fullpath) fullpath = file;
                         loadfile = fopen(fullpath, "rb");
-                        savelog = fopen("SAVELOG.TXT", "w");
+                        {
+                            char *savelog_path = get_path_from_home("SAVELOG.TXT");
+                            savelog = fopen(savelog_path ? savelog_path : "SAVELOG.TXT", "w");
+                            if(!savelog) savelog = fopen("/dev/null", "w");
+                        }
                         if(loadfile)
                         {
                             fprintf(savelog,"\n\n------------\n");
