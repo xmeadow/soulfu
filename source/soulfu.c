@@ -1075,7 +1075,11 @@ int main(int argc, char *argv[])
   // Export the config file to disk, so we don't need to save the whole datafile
   sdf_export_file("CONFIG.DAT", configfile);
 
-
+#ifdef __ANDROID__
+  // Explicitly quit SDL so Android's surfaceDestroyed gets the GL context
+  // deactivated cleanly before EGL tears down the surface.
+  SDL_Quit();
+#endif
 
   return 0;
 }
