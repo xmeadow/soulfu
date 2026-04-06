@@ -2821,6 +2821,7 @@ void display_touch_overlay(void)
     int i;
 
     if(!touch_controls_active) return;
+    if(player_device_type[0] != PLAYER_DEVICE_TOUCH) return;
     if(!play_game_active) return;
 
     display_zbuffer_off();
