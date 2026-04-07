@@ -66,7 +66,7 @@ DrawHighlight(int cycle, int main_alpha)
   ty = 8.0+y
   by = 10.0+y
   WindowMegaImage(lx,ty,  rx,ty,  rx,by,  lx,by,  0.0,0.0,  1.0,1.0,  white, ALPHA_LIGHT | alpha, "FILE:=RED.RGB")
-  
+
 
 //-----------------------------------------------------------------------
 int NumberOfLocalPlayers()
@@ -254,16 +254,21 @@ Refresh()
   // Title bar (no drag)
   TitleBar(FALSE, 0.0, -7.0, StringLanguage(1))
 
+  // Git version (below URL, right-aligned)
+  WindowBorder(FALSE, 0.0, 16.1, 14, 1, BORDER_LOW_TITLE)
+  WindowString(WHITE, 0.0, 0.1, "__GIT_VERSION__")
+
 
   // Webpage address...
-  WindowBorder(FALSE, -12.0, 14.3, 24, 1, BORDER_LOW_TITLE)
+  WindowBorder(FALSE, -14.0, 14.3, 28, 1, BORDER_LOW_TITLE)
   WindowString(WHITE, 0.0, 0.1, "www.AaronBishopGames.com")
 
-
   // Copyright notice
-  WindowBorder(FALSE, -15.0, 11.5, 30, 2, BORDER_BOX)
-  WindowString(WHITE, 0.0, 0.0, "\127 Copyright 2007, Aaron Bishop")
+  WindowBorder(FALSE, -15.0, 10.5, 30, 3, BORDER_BOX)
+  WindowString(WHITE, 0.0, 0.0, "\127 2007, Aaron Bishop")
   WindowString(WHITE, 15.0-(0.5*StringLength(StringLanguage(62))), 1.0, StringLanguage(62))
+  WindowString(WHITE, 0.0, 2.0, "\127 __YEAR__ soulfu-community")
+
 
 
   // Main window
@@ -339,7 +344,7 @@ Refresh()
 
 
   if(flag3 || picked_flag == 3)
-    flag3 = WindowImage(-5.00, y, 4.00, 2.00, "FILE:=SPAIN.RGB", "Español", flag3)
+    flag3 = WindowImage(-5.00, y, 4.00, 2.00, "FILE:=SPAIN.RGB", "Espaï¿½ol", flag3)
     if(flag3 == 255)
       ButtonSound()
       picked_flag = 3
@@ -352,7 +357,7 @@ Refresh()
 
 
   if(flag2 || picked_flag == 2)
-    flag2 = WindowImage(-5.00, y, 4.00, 2.00, "FILE:=FRANCE.RGB", "Français", flag2)
+    flag2 = WindowImage(-5.00, y, 4.00, 2.00, "FILE:=FRANCE.RGB", "Franï¿½ais", flag2)
     if(flag2 == 255)
       ButtonSound()
       picked_flag = 2
