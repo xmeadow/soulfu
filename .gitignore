@@ -12,5 +12,6 @@ CONFIG.DAT
 *.res
 *.deb
 datadir/*.LAN
+datadir/WMAIN.SRC.RUN
 packaging/bin
 .aider*
