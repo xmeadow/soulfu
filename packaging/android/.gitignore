@@ -1,9 +1,10 @@
-# Cloned dependencies (setup_deps.sh downloads these)
-SDL2/
-gl4es/
-libjpeg-turbo/
-libogg/
-libvorbis/
+# Cloned dependencies (setup_deps.sh downloads these).
+# No trailing slash so real dirs AND symlinks (manual dep setup) are both ignored.
+SDL2
+gl4es
+libjpeg-turbo
+libogg
+libvorbis
 
 # Gradle build artifacts
 .gradle/
@@ -18,8 +19,11 @@ app/jni/lib/
 # Copied SDL2 Java sources
 app/src/main/java/org/libsdl/
 
-# Symlinked asset
+# Symlinked/copied asset (built by 'make data')
 app/src/main/assets/datafile.sdf
+
+# Any stray APKs outside packaging/bin
+*.apk
 
 # IDE files
 .idea/
