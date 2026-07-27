@@ -1,7 +1,7 @@
 LOGFILE.TXT
 stderr.txt
-soulfu
-soulfu.exe
+/soulfu
+/soulfu.exe
 source/soulfu.o
 *.sdf
 *.RUN
